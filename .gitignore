@@ -1,5 +1,6 @@
 /build/*
 !/build/main.pdf
+/.vscode
 
 ## Core latex/pdflatex auxiliary files:
 *.aux
