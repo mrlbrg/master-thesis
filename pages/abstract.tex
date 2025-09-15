@@ -1,3 +1,26 @@
 \chapter{\abstractname}
 
-%TODO: Abstract
+% Why should you read this thesis? Why do we choose B-Trees?
+B-Trees are the most used data structure in modern database systems, due to their efficient access patterns and excellent lookup performance on large volumes of data.
+% What is the problem in B-Trees? Why are random writes important?
+However, B-Trees perform suboptimal under random writes, a particularly common pattern for secondary indexes.
+Such workloads introduce write amplification in B-Trees, a phenomenon where the amount of data written to storage is significantly larger than the amount of data that logically changed.
+% Why is solving write amplification important?
+As a result, B-Trees suffer increased latency, reduced throughput, and premature device wear with write-intensive workloads.
+
+% Why did previous attempts to solve the problem fail?
+As an alternative, \ac{LSMT} were proposed, which trade off low read performance for high write performance.
+However, this trade makes \ac{LSMT} unsuitable for generic database systems that require excellent read performance.
+Other attempts to reduce write amplification in B-Trees either reduce concurrency, impact read performance or rely on hardware-specific features, limiting their effectiveness and applicability.
+
+% What is the proposed approach?
+This thesis introduces a lightweight buffering layer that minimizes the frequency and volume of write operations to external storage by reducing write amplification.
+We hereby enable high performance under random writes, while sustaining all the benefits of traditional B-Trees.
+
+% What are the results?
+We implement the proposed structure, evaluate its performance under different workloads, and compare it against state-of-the-art methods.
+Compared to \ac{LSMT}, our approach offers [...].
+Compared to traditional B-Trees, our method achieves [...] while maintaining excellent read performance.
+
+% What are the implications?
+These results suggest that write-aware B-Tree optimizations can extend the lifespan of storage devices and significantly improve the efficiency of write-intensive applications; contributing to the broader effort of designing storage-efficient data structures suited for modern hardware.

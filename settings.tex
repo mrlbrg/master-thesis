@@ -9,13 +9,14 @@
 \usepackage[%
   backend=biber,
   url=false,
-  style=alphabetic,
+  style=numeric,
   maxnames=4,
   minnames=3,
   maxbibnames=99,
   giveninits,
   uniquename=init]{biblatex} % TODO: adapt citation style
 \usepackage{graphicx}
+\usepackage{subcaption}
 \usepackage{scrhack} % necessary for listings package
 \usepackage{listings}
 \usepackage{lstautogobble}
@@ -28,6 +29,7 @@
 \usepackage[printonlyused]{acronym}
 \usepackage{ifthen}
 
+\addbibresource{bibliography.bib}
 
 \hypersetup{hidelinks} % removes colored boxes around references and links
 

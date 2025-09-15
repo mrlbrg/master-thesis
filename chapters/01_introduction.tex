@@ -3,102 +3,103 @@
 
 \chapter{Introduction}\label{chapter:introduction}
 
-\section{Background and Motivation}
+\section{Motivation}
+\begin{figure}[htpb]
+  \centering
+  \begin{subfigure}[t]{0.95\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/sequential_access.pdf}
+    \caption{Sequential Access Pattern: Updating keys \{2, 3, 16\}.}
+    \label{fig:second-pdf}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[t]{0.95\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{figures/random_access.pdf}
+    \caption{Random Access Pattern: Updating keys \{29, 51, 2\}.}
+    \label{fig:first-pdf}
+  \end{subfigure}
+  \caption{Comparison of access patterns in a B-Tree. Written pages are highlighted in red. Read pages are highlighted in yellow.}
+  \label{fig:access-pattern-comparison}
+\end{figure}
+
+Efficiently managing large data sets is a core requirement for database systems. 
+% Not only have \ac{SSD} become drastically cheaper, they also achieve excellent throughput, making them an attactive, cost-effective storage medium \cite{haas2023modern}.
+% Yet, external storage accesses remain magnitudes slower than main memory accesses.
+The largest overhead in beyond memory systems lies in \ac{IO} operations on external storage. 
+Therefore, minimizing \ac{IO} operations remains the fundamental premise for designing high performance modern \ac{DBMS}.
+Primarily, this is done by caching frequently accessed pages in \ac{DRAM} using a buffer manager \cite{leis2018leanstore}.
+All data in the system are stored in pages, the buffer manager can uniformly serve and cache pages for all components in the system.
+This modular design allows a separation of concerns between the buffer manager and its users, such as indexes and data structures.
+However, this also means that the buffer manager is agnostic of its user's access patterns.
+While the buffer manager minimizes the number of \ac{IO} operations to the best of its knowledge, every component in the systems must design its access patterns to be as efficient as possible. 
+
+
+A prominent example of such a component is the B-Tree. 
+B-Trees are the dominant data structure for indexing large datasets in disk-based \ac{DBMS} due to their excellent lookup performance, support for range queries, and simplicity.
+However, random writes, a particularly common pattern for secondary indexes, lead to inefficient access patterns that a buffer manager cannot hide for out-of-memory workloads.
+
+B-Trees organize their nodes as pages. Due to their sorted order, accessing random keys leads to random accesses of different pages that need to be loaded into the buffer.
+At eviction time, each modified page requires a full rewrite to storage, even if only a small portion of the page changed.
+\autoref{fig:access-pattern-comparison} illustrates this effect by comparing a sequential and a random update pattern in a B-Tree.
+We consider three updates to the tree.
+In the sequential update, only three pages are read and one of them is written.
+In the random update, six pages are read and three of them are written.
+Merely changing the access pattern from sequential to random leads to a threefold increase in the amount of data written to storage.
+If we assume that each page is 4 KB, the sequential update requires one storage write of 4 KB.
+The random update requires three storage writes of 12 KB in total.
+Random writes introduce \emph{write amplification}, a phenomenon where the amount of data written to storage is significantly larger than the amount of data that logically changed.
+
+Write amplification inflates \ac{IO} operations, wastes bandwidth, and ultimately increases latency in bandwidth-bound scenarios.
+For example in cloud environments, where storage can be remote, an unnecessary network round-trip directly translates to increased latency and reduced throughput in the system.
+
+Additionally, \ac{SSD} come with their own write amplification due to their flash translation layer performing garbage collection \cite{haas2023modern}. 
+This leads to a multiplication of unnecessary physical writes. 
+Lastly, due to \ac{SSD}'s limited write endurance, this not only degrades performance but also wears out the device faster.
+
+In summary, to design a truly efficient, high performance system, we must minimize \ac{IO} operations in all components of the storage stack. 
+In this thesis, we focus on closing the efficiency gap in B-Trees by reducing write amplification.
+
 \section{Problem Statement}
-\section{Objectives and Research Questions}
+% Include metrics for write amplification. Why B-Trees suffer from it. State the gap.
+While B-Trees are the backbone of indexing in modern storage engines, their in-place updates introduce significant write amplification, leading to performance degradation and reduced device lifespan. 
+
+\ac{LSMT} address write costs by always writing sequentially, but they introduce high read amplification and complex tuning requirements, making them unsuitable for general-purpose database systems.
+
+B$\epsilon$-Trees buffer and batch updates starting from the root and propagating them down the tree to reduce write amplification. 
+Firstly, this introduce two searches per node, one for the next pivot and one for a buffered update for the looked up key.
+Secondly, the reduced space for pivots in each node reduces the fanout of the tree, leading to taller trees and more \ac{IO} operations per lookup.
+Most importantly though, it significantly limits concurrency in the data structure, as the hottest nodes are locked for longer periods of time to write the update messages, reducing throughput in the tree.
+
+We identify a research gap for a B-Tree variant that effectively reduces write amplification while preserving the excellent query efficiency and concurrency traits of traditional B-Trees.
+This thesis addresses the problem of write amplification in B-Trees while preserving their query efficiency and operational practicality.
+
+% Figure: Show write amplification gap between sequential and random writes. Show difference in latency of inserting x keys, difference in IO operations, difference in written volume.
+
+% Circumvent more robust access patterns using LSM Trees. Sacrifice read performance.
+\section{Objectives}
+% Explicitly list what your thesis adds to the field.
+The primary objective of this thesis is to design, implement and evaluate a B-Tree variant that reduces write amplification while maintaining the high read performance and concurrency of traditional B-Trees.
+We focus on the following research questions:
+\begin{enumerate}
+  \item How can we effectively reduce write amplification in B-Trees?
+  \item How can we preserve read performance and concurrency in the presence of write optimizations?
+  \item How does the proposed approach compare to existing methods in terms of write amplification, query performance and throughput?
+\end{enumerate}
+
+While we reflect on significant hardware trends in this thesis, such as the increasing prevalence of \ac{SSD}, we do not target optimizations for specific hardware features.
+Instead, we aim to design a solution that is broadly applicable across different storage media and hardware configurations.
+
+We also do not aim to outperform \ac{LSMT} in write-intensive workloads, as they are fundamentally optimized for such scenarios, trading off lookup performance.
+
+While the page-oriented design is one reason for \ac{IO} amplification in B-Trees in general, we do not aim to redesign the data structure from the ground up.
+Instead, we focus on a lightweight extension to the traditional B-Tree that can be integrated into existing systems with minimal changes.
+
 \section{Contributions}
+% Summarize the main contributions of your thesis.
+This thesis introduces 3B-Tree, a B-Tree variant that incorporates a lightweight buffering layer to minimize write amplification.
+The buffering layer aggregates and batches write operations, reducing the frequency and volume of writes to external storage.
+This design preserves concurrency and read performance of traditional B-Trees while effectively mitigating write amplification.
+We minimize \ac{IO} operations to those strictly necessary. 
 
-
-
-
-
-\section{Latex Examples}
-Citation test~\parencite{latex}.
-
-Acronyms must be added in \texttt{main.tex} and are referenced using macros. The first occurrence is automatically replaced with the long version of the acronym, while all subsequent usages use the abbreviation.
-
-E.g. \texttt{\textbackslash ac\{TUM\}, \textbackslash ac\{TUM\}} $\Rightarrow$ \ac{TUM}, \ac{TUM}
-
-For more details, see the documentation of the \texttt{acronym} package\footnote{\url{https://ctan.org/pkg/acronym}}.
-\subsection{Subsection}
-
-See~\autoref{tab:sample}, \autoref{fig:sample-drawing}, \autoref{fig:sample-plot}, \autoref{fig:sample-listing}.
-
-\begin{table}[htpb]
-  \caption[Example table]{An example for a simple table.}\label{tab:sample}
-  \centering
-  \begin{tabular}{l l l l}
-    \toprule
-      A & B & C & D \\
-    \midrule
-      1 & 2 & 1 & 2 \\
-      2 & 3 & 2 & 3 \\
-    \bottomrule
-  \end{tabular}
-\end{table}
-
-\begin{figure}[htpb]
-  \centering
-  % This should probably go into a file in figures/
-  \begin{tikzpicture}[node distance=3cm]
-    \node (R0) {$R_1$};
-    \node (R1) [right of=R0] {$R_2$};
-    \node (R2) [below of=R1] {$R_4$};
-    \node (R3) [below of=R0] {$R_3$};
-    \node (R4) [right of=R1] {$R_5$};
-
-    \path[every node]
-      (R0) edge (R1)
-      (R0) edge (R3)
-      (R3) edge (R2)
-      (R2) edge (R1)
-      (R1) edge (R4);
-  \end{tikzpicture}
-  \caption[Example drawing]{An example for a simple drawing.}\label{fig:sample-drawing}
-\end{figure}
-
-\begin{figure}[htpb]
-  \centering
-
-  \pgfplotstableset{col sep=&, row sep=\\}
-  % This should probably go into a file in data/
-  \pgfplotstableread{
-    a & b    \\
-    1 & 1000 \\
-    2 & 1500 \\
-    3 & 1600 \\
-  }\exampleA
-  \pgfplotstableread{
-    a & b    \\
-    1 & 1200 \\
-    2 & 800 \\
-    3 & 1400 \\
-  }\exampleB
-  % This should probably go into a file in figures/
-  \begin{tikzpicture}
-    \begin{axis}[
-        ymin=0,
-        legend style={legend pos=south east},
-        grid,
-        thick,
-        ylabel=Y,
-        xlabel=X
-      ]
-      \addplot table[x=a, y=b]{\exampleA};
-      \addlegendentry{Example A}
-      \addplot table[x=a, y=b]{\exampleB};
-      \addlegendentry{Example B}
-    \end{axis}
-  \end{tikzpicture}
-  \caption[Example plot]{An example for a simple plot.}\label{fig:sample-plot}
-\end{figure}
-
-\begin{figure}[htpb]
-  \centering
-  \begin{tabular}{c}
-  \begin{lstlisting}[language=SQL]
-    SELECT * FROM tbl WHERE tbl.str = "str"
-  \end{lstlisting}
-  \end{tabular}
-  \caption[Example listing]{An example for a source code listing.}\label{fig:sample-listing}
-\end{figure}
+We hereby contribute to the broader effort of minimizing overhead of beyond memory systems and designing efficient, high-performance datbase systems for modern hardware.

@@ -1,10 +1,175 @@
 \chapter{Background}
-\begin{itemize}
-    \item External Storage Characteristics (Disk Arm, SSD Wearout, Difference in Random Write Latency)
-    \item B-Trees
-    \item B+-Trees
-    \item Write Amplification (Measures, Sources of Write Amplification in B-Trees)
-    \section{Impact of Node Size and Fan-out}
-    \section{Write Path Analysis}
-    \section{Analytical Model}
-\end{itemize}
+
+\section{Database System Architecture Overview}
+
+\begin{figure}[htpb]
+  \centering
+  \includegraphics[width=0.99\textwidth]{figures/db_architecture.pdf}
+  \caption{The storage and access layer of a database system.}
+  \label{fig:db-architecture}
+\end{figure}
+
+In the scope of this thesis we focus on a classic architecture of a single-node, disk-based database system.
+The access and storage layer of a database system typically consist of a buffer manager, one or more index structures and the slotted pages that store tuples identified by \ac{TID}s, as illustrated in \autoref{fig:db-architecture}.
+Since we operate in a beyond memory setting, the buffer manager is responsible for caching pages in \ac{DRAM} and loading them from external storage when needed.
+Therefore, all components accessing physical data interact with the buffer manager to load and store their pages.
+When a query is executed, the index is accessed by a given key (e.g. the primary key) to find the \ac{TID} of the relevant tuple.
+The index is typically stored in pages, which are loaded into the buffer pool by the buffer manager.
+Using the \ac{TID}, the corresponding tuple can be retrieved from the slotted pages.
+The \ac{TID} encodes the page identifier and the slot number within the page.
+When a tuple is updated, the corresponding page is loaded into the buffer pool, modified, and marked as dirty.
+Should the buffer pool be full, the buffer manager evicts pages based on its replacement policy.
+Clean, unchanged pages can be discarded, while dirty, modified pages must be written back to external storage.
+
+
+\section{Index Structures}
+Index structures are data structures that enable efficient access to data stored in a database.
+Typically, they map a key to a constant, unique \ac{TID}. A \ac{TID} never changes for a tuple.
+Keys can be arbitrary types and therefore of fixed or variable size, such as integers or strings.
+We will consider both within this thesis.
+When the key of a tuple changes, the index must be updated to reflect the new key.
+
+Some key-value stores directly map keys to tuples within their index structure, omitting the indirection via \ac{TID} and slotted pages.
+However, in a general purpose \ac{DBMS}, we typically want to support multiple indexes on the same data.
+If we stored tuples directly in the index, we would need to update all indexes when a tuple changes.
+Therefore the access and storage layer are decoupled via \ac{TID}s.
+
+Indexes can be classified into primary and secondary indexes.
+A primary index is built on the primary key of a table, which uniquely identifies each tuple.
+A secondary index is built on a non-primary key, which can be non-unique.
+
+Having sequential access to a primary key is common, for example when inserting new tuples with an auto-incrementing primary key.
+However, secondary keys are often accessed randomly. For example, consider a user's email address as a secondary key.
+When inserting a new user, the email address is likely to be random and not follow any specific order.
+Therefore, secondary indexes often exhibit random access patterns, which can lead to inefficient access patterns in traditional index structures like a B-Tree.
+
+\section{B-Trees}
+
+\begin{figure}[htpb]
+  \centering
+  \includegraphics[width=0.99\textwidth]{figures/b_tree.pdf}
+  \caption{A B+-Tree. Child pointers are repesented as arrows. Values (the \ac{TID}) are represented as bullet points •.}
+  \label{fig:b-tree}
+\end{figure}
+
+B-Trees \cite{bayer1970organization} are a self-balancing tree data structure that maintains sorted data and allows for insertion, deletion, and search operations in logarithmic time, $\mathcal{O}(\log n)$.
+A B-Tree is organized in fixed-size pages, called nodes. These pages are transferred transparently by the buffer manager between external storage and \ac{DRAM}.
+Each node can split off a sibling once is it full. If a node is full and a new key needs to be inserted, the node splits into two nodes, and the middle key is promoted to the parent node.
+Additionally, nodes can merge with a sibling if they become less than half full. For simpliticity, we omit merging of nodes in this thesis.
+The tree only increases in height when the root node splits.
+Each node contains between 2 and 2k entries, except for the root node, which can contain between 1 and 2k entries.
+Each entry is a triple of a key, a pointer to a child node, and optionally a value (the \ac{TID}).
+The entries in each node are sorted by key. On leaf nodes (nodes without children), the pointer to a child node is undefined.
+An inner node (a node that is not a leaf) with k keys has k+1 children.
+Each entry in an innder node separates the key space of its children.
+The additional child pointer is necessary to separate the key space above the largest key in the node.
+For example, consider an inner node with keys \{10, 20, 30\}.
+The first child contains all keys less than 10, the second child contains all keys between 10 and 20, and the third child contains all keys between 20 and 30. 
+The fourth child contains all keys greater than 30.
+
+When searching for a key in the tree, we start at the root node.
+On each node, we perform a binary search to find the appropriate pivot key and follow the corresponding child pointer.
+We stop when we reach a node with the desired key.
+
+\subsection*{B+-Trees}
+When addressing B-Trees in this thesis, we actually refer to B+-Trees, a variant of B-Trees where all values are stored in the leaf nodes and internal nodes only store keys and child pointers to guide the search.
+The separator keys in internal nodes may or may not occur in the data. An example B+-Tree is illustrated in \autoref{fig:b-tree}.
+The lookup procedure is the same as in a B-Tree, however we always traverse the full tree from root to leaf to find a key.
+Not only does this simplify the B-Tree logic, it also increases the fanout of inner nodes, leading to a lower tree height and therefore fewer \ac{IO} operations for lookups since less pages are involved in reaching the leaf level.
+Also, it allows for efficient range queries by scanning the leaf nodes in order.
+Due to its excellent lookup performance, support for range queries, and simplicity, B-Trees are the dominant data structure for external storage \cite{mdbs2024slides}.
+
+% Slotted Node Layout here or in Implementation?
+
+\subsection*{Node Size \& Fanout}
+\label{sec:node-size-fanout}
+The node size is a crucial parameter in the design of a B-Tree, as it affects the height of the tree.
+The height of a B-Tree is $\log_f(n)$, where $f$ is the fanout (the number of children per node) of the tree and $n$ is the number of keys in the tree.
+The node size determines how many entries fit into a node, which directly impacts the fanout $f$ of the tree and therefore its height.
+Larger nodes lead to more entries per node, increasing the fanout. 
+When we can address more children per node, we need fewer levels in the tree to address the same number of keys.
+Therefore, larger nodes lead to a more shallow tree. 
+Since every lookup requires a traversal from the root to a leaf node, a more shallow tree leads to fewer pages involved in the lookup.
+Thus, larger nodes lead to fewer \ac{IO} operations per lookup.
+Additionally, since we need fewer distrinct pages, we induce less page management overhead in the buffer manager.
+This is particularly beneficial for analytical workloads, which often perform large scans and are interested in large parts of the data.
+However, workloads that perform many updates and point queries, we are often only interested in a small portion of the page.
+As a result, larger nodes lead to more \ac{IO} amplification, as we read and write significantly more data than necessary to perform the operation.
+Research on modern \ac{SSD} shows that a good compromise is given for page sizes of 4 KB \cite{haas2023modern}.
+While we will be investigating different node sizes in our evaluation, this parameter is not the primary focus of this thesis.
+Instead, we focus on reducing \ac{IO} amplification in B-Trees at any page size, but larger nodes profit more significantly from our approach.
+
+
+\section{Log-Structured-Merge-Trees}
+\ac{LSMT} \cite{oneil1996log} are a write-optimized data structure that trade off read performance for high write performance.
+They consist of multiple levels of sorted runs, where each level is larger than the previous one.
+New data is first written to an in-memory component (often called C0) and then flushed to disk as a new sorted run in the first level (C1).
+When a level reaches its size limit, it is merged with the next level (C2), creating a new sorted run in that level.
+This process continues recursively, with each level being merged into the next one when it reaches its size limit.
+Since writes are sequential and batched, \ac{LSMT}s can achieve high write throughput.
+
+\ac{LSMT} are especially well-suited for remote object storage like S3. Objects are immutable and updates require rewriting the entire object, analogous to runs in \ac{LSMT}.
+
+When performing a point lookup in \ac{LSMT}, we need to search through all levels, starting from the in-memory component down to the last level on disk.
+This is because the key we are looking for could be in any of the levels.
+To optimize lookups, \ac{LSMT} often use Bloom filters to check if a key is present in a level before performing a more expensive search.
+However, Bloom filters themselves can become large when indexing large data sets.
+Range queries always require a full search of all levels.
+Consequently, \ac{LSMT} exhibit high read amplification, as we need to read multiple pages from different levels to find a key.
+\ac{LSMT} are suitable in scenarios where index updates dominate lookups and are therefore unsuitable for a general purpose \ac{DBMS}.
+
+
+\section{External Storage Characteristics}
+For some time, in-memory database systems like Hyper \cite{kemper2011hyper} have gained popularity due to the decreasing cost of \ac{DRAM}.
+However, that trend has reversed recently, as \ac{DRAM} prices have stagnated \cite{haas2023modern} and \ac{SSD} price-performance-ratio have improved significantly \cite{leis2024leanstore}.
+Therefore, modern database systems are designed to operate efficiently on external storage and since index structures are the performance-critical component, out-of-memory indexing has become a key consideration again.
+B-Trees have been the dominant index structure for out-of-memory indexing, since their high fanout minimizes the number of \ac{IO} operations.
+
+Historically, hard disks were the dominant storage medium.
+Hard disks have a significant imbalance in latency between random and sequential \ac{IO} due to their mechanical nature.
+While \ac{SSD} have a smaller difference between random and sequential \ac{IO}, they still exhibit asymmetric performance \cite{haas2023modern}.
+Therefore, to amortize the cost of random \ac{IO}, database systems and their index structures are designed to access data in pages of multiple kilobytes instead of individual tuples.
+
+% SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
+
+\section{Write Amplification}
+Write amplification is the ratio of the amount of data written to storage versus the amount of logical data written by the user.
+For example, if the B-Tree updates an entry of 64 B, but needs to write a full page of 4 KB to storage, the write amplification is 4096 / 64 = 64.
+Write amplification $WA$ is formally defined as:
+
+\[
+WA = \frac{Bytes Written Physically}{Bytes Written Logically}
+\]
+
+There are multiple layers of write amplification in a database system, which we need to differentiate from each other.
+
+\subsection*{Application Layer}
+At the application layer, we consider an external end user interacting with the database system.
+When an end user inserts a tuple through a query, the database system must insert the tuple in the table itself, as well as all indexes that serve to access the tuple later.
+The bytes written logically are the bytes of the new tuple.
+Consequently, we already write more bytes than the user inserted.
+Additionally, updating a B-Tree index might cause structural changes such as node splits or merges that create new nodes, delete new nodes and update the parent nodes.
+Thus, a database system inherently comes with write amplification. Write overhead to manage data efficiently.
+This is however not the focus of this thesis; we assume all updates to the B-Tree structure as necessary and focus on reducing write amplification in the index layer.
+
+\subsection*{Index Layer}
+At the index layer, we consider the B-Tree as the user of pages.
+When a B-Tree entry is updated, the bytes written logically include not only the updated key but also any additional metadata required to maintain the tree structure.
+This can include information about node splits, merges, and the promotion of keys to parent nodes.
+The writes are amplified by the B-Tree's need to rewrite entire pages even if only a small portion of the page changed.
+As mentioned in \autoref{sec:node-size-fanout}, the node size directly impacts the write amplification at this level.
+This is the write amplification we focus on in this thesis, by minimizing the number of pages written to storage for a given set of updates (see \autoref{chap:method}).
+
+\subsection*{Physical Layer}
+At the physical layer, we consider the database system as the user (the host) of the physical storage device.
+When the database system writes a page to storage, the bytes written logically are the size of the page.
+However, due to the characteristics of the storage device, the actual bytes written physically can be larger.
+\ac{SSD} typically operate in larger units called blocks, which consist of multiple pages.
+When a page is updated, the entire block containing that page must be rewritten, leading to write amplification.
+Additionally, when garbage collection is performed, valid pages within a block must be copied to a new block before the old block can be erased and reused.
+Recent research have observed write amplification factors up to 10x on modern \ac{SSD} \cite{haas2025ssd}.
+Consequently, a page write of 4 KB can lead to physical writes of up to 40 KB on the device, using up valuable bandwidth and wearing out the device faster.
+While we do not focus on hardware-level write amplification in this thesis, it shows the importance of reducing write amplification at the database system level.
+Any unnecessary write at the database system level is multiplied by the storage device.
+
+% See Bepsilon paper for more analytical model
