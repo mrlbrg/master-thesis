@@ -1,13 +1,120 @@
 \chapter{Related Work}
 (Position each data structure in their attempt to solve a certain problem and how it does not solve ours yet/well)
 
-\section{B-Epsilon Trees}
-\section{Bw-Trees}
-\section{In-Memory B-Trees.}
-see https://www.cs.cit.tum.de/fileadmin/w00cfj/dis/papers/btrees-are-back.pdf
+\section{Log-Structured-Merge-Trees}
+
+\ac{LSMT} \cite{oneil1996log} are a popular alternative index data structure to B-Trees for write-heavy workloads.
+They are increasingly used in key-value stores such as RocksDB at Meta \cite{rocksdb} or BigTable at Google \cite{chang2008bigtable}.
+
+\inlinesection{Basic Structure.}
+\ac{LSMT} consist of two main components: an in-memory component and a disk-based component.
+The in-memory component is typically implemented as a balanced tree such as a red-black tree, called a MemTable.
+The MemTable accepts and applies updates in memory.
+Once it is full, it is flushed to disk as a sorted, immutable runs in files called SSTables.
+Over time, multiple runs accumulate on disk.
+Since those runs may have overlapping key ranges, lookups need to check both memory and multiple disk files to find a key.
+
+To limit the number of runs on disk and improve lookup performance, \ac{LSMT} organize runs into multiple levels, where each level is larger and more data is sorted than in the previous one.
+When a level reaches its size limit, it triggers a compaction process to sort-merge runs into the next level, retaining only the latest version of each key.
+As a result, higher levels contain more recent data with several, smaller files with overlapping key ranges while lower levels contain few, large files with non-overlapping key ranges.
+Since runs are immutable, each compaction generates new files for the merged runs.
+Outdated files are deleted by a garbage collector \cite{sarkar2022lsmt}.
+
+% TODO: Figure of LSMT maybe
+
+\inlinesection{High Write Performance.}
+B-Trees maintain a fully sorted view of the data and update this view in-place.
+In contrast, \ac{LSMT} update out-of-place in a sequential, log-structured manner by buffering updates in memory and flushing them to external storage in large, sorted batches, enabling high write throughput.
+The excellent write performance of an \ac{LSMT} makes this data structure suitable for write-heavy workloads, such as time-series data or logging systems.
+
+% Cloud Scenario
+% Also, the immutability of files in \ac{LSMT} aligns well with that of objects in remote storage like S3.
+% This makes \ac{LSMT} a good fit for a cloud data management scenario.
+%  Add how B-Trees would make a better fit for remote storage with out method.
+
+\inlinesection{Low Read Performance.}
+Essentially, \ac{LSMT} trade high write performance at the cost of low read performance.
+This is useful for specific scenarios where writes dominate reads.
+However, it makes \ac{LSMT} unsuitable for general-purpose \ac{DBMS} as they incur significantly higher lookup costs compared to a B-Tree as shown in \cite{gorrod2017wiredtiger}.
+
+When performing point lookups, the \ac{LSMT} checks the MemTable first and then each level on disk from top to bottom until it is found or not.
+In fact, when we only lookup hot keys that are likely to be in memory, \ac{LSMT} can perform well.
+However, such temporal locality is an assumption that we cannot make in a general-purpose system that needs to balance performance for all use-cases.
+
+To improve lookup performance, each SSTable has an in-memory Bloom filter to check if a key is present in the file before performing a search.
+However, Bloom filters come with other problems. 
+For one, it can yield false positives.
+Secondly, the larger the data set they are addressing, the larger the Bloom filter needs to be, inflating the memory footprint of \ac{LSMT}.
+
+Most importantly though, Bloom filters cannot handle range queries.
+For range queries, all SSTables across levels must be checked. 
+While there is an effort to improve range query performance in \ac{LSMT} \cite{zhong2021remix}, they are not designed for efficient range queries, as range data is scattered across the tree \cite{sarkar2022lsmt}.
+
+\inlinesection{Summary.}
+Overall, both \ac{LSMT} and B-Trees are efficient data structures, but built for different scenarios.
+This update/query trade-off has been well studied in literature \cite{brodal2003lower}.
+In this thesis we focus on general-purpose database systems, which require balanced performance characteristics across-the-board.
+For such a system, B-Trees are the superior data structure.
+We therefore investigate how to improve B-Trees to close the gap in write performance to \ac{LSMT} while retaining their superior read performance.
+
+% \section{In-Memory Data Structures}
+% see https://www.cs.cit.tum.de/fileadmin/w00cfj/dis/papers/btrees-are-back.pdf
+
+\section{B$^\epsilon$-Trees}
+
+\textbf{Basic Structure.}
+B$^\epsilon$-Trees \cite{bender2015epsilon} are a write-optimized variant of B-Trees.
+Each internal node has a buffer to temporarily encode incoming updates as messages.
+When a buffer is full, messages are flushed to the appropriate child node.
+When messages reach a leaf node, they are applied to the respective leaf.
+Deletes are handled as tombstone messages that mark a key as deleted. Only when the message reaches the leaf, the key-value pair is removed from the leaf.
+Each message encodes a timestamp to ensure that the updates are applied in the right order.
+
+The $\epsilon$, which is a value between 0 and 1, refers to the tunable parameter that controls the size of the buffers in relation to the node size.
+Given a page size $B$, it determines how much of its space is used for storing pivots ($B^\epsilon$) versus buffering updates ($B - B^\epsilon$).
+Choosing a larger $\epsilon$ increases the space for keys and pointers, improving read performance similar to a B-Tree, while a smaller $\epsilon$ increases the buffer size, enhancing write performance similar to a buffered repository tree \cite{buchsbaum2000external}.
+
+\inlinesection{Mitigation of Write Amplification.}
+This design allows B$^\epsilon$-Trees to batch updates, reducing the number of \ac{IO} operations and improving write performance while maintaining comparable read performance to B-Trees.
+A benefit of using a top-down approach to propagate updates is that it primarily writes to higher levels of the tree which are more frequently accessed and thus more likely to be cached in memory.
+Alongside with a good eviction strategy, this can effectively reduce number of write operations to external storage.
+Another effect of this design it that is allows for large node sizes.
+For one, we need larger node sizes to accommodate the buffers and maintain a high fanout.
+But more importantly, batching updates mitigates write amplification.
+At the time of reaching a leaf node to apply updates, many updates have accumulated and can be applied at once. 
+A leaf node will not be rewritten for individual updates. 
+Therefore, the larger node sizes are less problematic in B$^\epsilon$-Trees, since they do not incur as much write amplification as in B-Trees.
+
+\inlinesection{Read Overhead.}
+Messages are usually binary search trees like a red-black tree to allow efficient searching within the buffer.
+When searching for a key, the tree is traversed from the root to the leaf, checking each buffer along the path for messages that belong to the key.
+This ensures that the most recent updates are considered during the search.
+However, this also means that two searches are required per node: one for the pointer to the child node and one for messages in the buffer.
+This introduces some overhead for read operations compared to B-Trees.
+
+On the other hand, B$^\epsilon$-Trees can achieve faster scans, because larger node sizes are more attractive in this design, better utilizing the bandwidth of external storage.
+
+\inlinesection{Concurrency Limitation.}
+Since updates are propagated top-down, we introduce contention on higher levels of the tree.
+However, higher levels of the tree are more frequently accessed to locate entries.
+When they are written to, this blocks a large amount of nodes below.
+This is especially problematic for the root node, which needs to be accessed by every operation in the tree, limiting concurrency in the system significantly.
+
+\inlinesection{Summary.}
+While B$^\epsilon$-Trees have been shown to effectively mitigate write amplification in a single-threaded scenario, they significantly limit concurrency in the data structure.
+A characteristic that makes B$^\epsilon$-Trees unsuitable for high-performance database systems.
+In this thesis, we aim to reduce write amplification in B-Trees while retaining high concurrency.
 
 \section{Write-Optimized B-Trees}
+
+\section{Bw-Trees}
+
+\section{Blink-Trees}
+
+% \section{Buffer Trees}
+
 \section{Fractal Trees}
-\section{Buffer Trees}
-\section{LSM Trees}
+
+\section{Other B-Tree Optimizations}
+
 \section{Summary}

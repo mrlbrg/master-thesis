@@ -96,28 +96,9 @@ This is particularly beneficial for analytical workloads, which often perform la
 However, workloads that perform many updates and point queries, we are often only interested in a small portion of the page.
 As a result, larger nodes lead to more \ac{IO} amplification, as we read and write significantly more data than necessary to perform the operation.
 Research on modern \ac{SSD} shows that a good compromise is given for page sizes of 4 KB \cite{haas2023modern}.
+% TODO: Make sure this is still correct by the end of the thesis:
 While we will be investigating different node sizes in our evaluation, this parameter is not the primary focus of this thesis.
 Instead, we focus on reducing \ac{IO} amplification in B-Trees at any page size, but larger nodes profit more significantly from our approach.
-
-
-\section{Log-Structured-Merge-Trees}
-\ac{LSMT} \cite{oneil1996log} are a write-optimized data structure that trade off read performance for high write performance.
-They consist of multiple levels of sorted runs, where each level is larger than the previous one.
-New data is first written to an in-memory component (often called C0) and then flushed to disk as a new sorted run in the first level (C1).
-When a level reaches its size limit, it is merged with the next level (C2), creating a new sorted run in that level.
-This process continues recursively, with each level being merged into the next one when it reaches its size limit.
-Since writes are sequential and batched, \ac{LSMT}s can achieve high write throughput.
-
-\ac{LSMT} are especially well-suited for remote object storage like S3. Objects are immutable and updates require rewriting the entire object, analogous to runs in \ac{LSMT}.
-
-When performing a point lookup in \ac{LSMT}, we need to search through all levels, starting from the in-memory component down to the last level on disk.
-This is because the key we are looking for could be in any of the levels.
-To optimize lookups, \ac{LSMT} often use Bloom filters to check if a key is present in a level before performing a more expensive search.
-However, Bloom filters themselves can become large when indexing large data sets.
-Range queries always require a full search of all levels.
-Consequently, \ac{LSMT} exhibit high read amplification, as we need to read multiple pages from different levels to find a key.
-\ac{LSMT} are suitable in scenarios where index updates dominate lookups and are therefore unsuitable for a general purpose \ac{DBMS}.
-
 
 \section{External Storage Characteristics}
 For some time, in-memory database systems like Hyper \cite{kemper2011hyper} have gained popularity due to the decreasing cost of \ac{DRAM}.
@@ -129,6 +110,7 @@ Historically, hard disks were the dominant storage medium.
 Hard disks have a significant imbalance in latency between random and sequential \ac{IO} due to their mechanical nature.
 While \ac{SSD} have a smaller difference between random and sequential \ac{IO}, they still exhibit asymmetric performance \cite{haas2023modern}.
 Therefore, to amortize the cost of random \ac{IO}, database systems and their index structures are designed to access data in pages of multiple kilobytes instead of individual tuples.
+While we will be referencing disk-based systems throughout this thesis, we speak of systems operating on external storage, which can be either disk-based or flash-based.
 
 % SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
 
@@ -143,7 +125,7 @@ WA = \frac{Bytes Written Physically}{Bytes Written Logically}
 
 There are multiple layers of write amplification in a database system, which we need to differentiate from each other.
 
-\subsection*{Application Layer}
+\inlinesection{Application Layer.}
 At the application layer, we consider an external end user interacting with the database system.
 When an end user inserts a tuple through a query, the database system must insert the tuple in the table itself, as well as all indexes that serve to access the tuple later.
 The bytes written logically are the bytes of the new tuple.
@@ -152,7 +134,7 @@ Additionally, updating a B-Tree index might cause structural changes such as nod
 Thus, a database system inherently comes with write amplification. Write overhead to manage data efficiently.
 This is however not the focus of this thesis; we assume all updates to the B-Tree structure as necessary and focus on reducing write amplification in the index layer.
 
-\subsection*{Index Layer}
+\inlinesection{Index Layer.}
 At the index layer, we consider the B-Tree as the user of pages.
 When a B-Tree entry is updated, the bytes written logically include not only the updated key but also any additional metadata required to maintain the tree structure.
 This can include information about node splits, merges, and the promotion of keys to parent nodes.
@@ -160,7 +142,7 @@ The writes are amplified by the B-Tree's need to rewrite entire pages even if on
 As mentioned in \autoref{sec:node-size-fanout}, the node size directly impacts the write amplification at this level.
 This is the write amplification we focus on in this thesis, by minimizing the number of pages written to storage for a given set of updates (see \autoref{chap:method}).
 
-\subsection*{Physical Layer}
+\inlinesection{Physical Layer.}
 At the physical layer, we consider the database system as the user (the host) of the physical storage device.
 When the database system writes a page to storage, the bytes written logically are the size of the page.
 However, due to the characteristics of the storage device, the actual bytes written physically can be larger.

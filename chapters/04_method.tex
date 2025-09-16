@@ -1,5 +1,10 @@
 \chapter{Method}
 \label{chap:method}
+% Obervation: Write amplification in B-Trees is caused at the point of eviction. This is the point in time to buffer to defer a write.
+% Observation: The data structure itself should remain free of buffering logic to not compromise concurrency.
+% Idea: Introduce a layer between the data structure and the storage manager that buffers writes and applies them in batches.
+% Figure: Diagram of the architecture with the new layer.
+
 \section{Design Goals}
 \section{High-Level Description of the Optimization}
 \section{Data Structure Modifications}
