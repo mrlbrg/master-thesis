@@ -1,8 +1,9 @@
 \chapter{Related Work}
-(Position each data structure in their attempt to solve a certain problem and how it does not solve ours yet/well)
+In this chapter, we review related work on write-optimized data structures, focusing on B-Tree variants and alternatives and compression techniques to reduce write amplification.
+For each data structure, we discuss its design, how it addresses write amplification, and its trade-offs in terms of read performance, concurrency and applicability.
+We outline the gap in existing work that we aim to address in this thesis.
 
 \section{Log-Structured-Merge-Trees}
-
 \ac{LSMT} \cite{oneil1996log} are a popular alternative index data structure to B-Trees for write-heavy workloads.
 They are increasingly used in key-value stores such as RocksDB at Meta \cite{rocksdb} or BigTable at Google \cite{chang2008bigtable}.
 
@@ -57,11 +58,8 @@ In this thesis we focus on general-purpose database systems, which require balan
 For such a system, B-Trees are the superior data structure.
 We therefore investigate how to improve B-Trees to close the gap in write performance to \ac{LSMT} while retaining their superior read performance.
 
-% \section{In-Memory Data Structures}
-% see https://www.cs.cit.tum.de/fileadmin/w00cfj/dis/papers/btrees-are-back.pdf
 
 \section{B$^\epsilon$-Trees}
-
 \textbf{Basic Structure.}
 B$^\epsilon$-Trees \cite{bender2015epsilon} are a write-optimized variant of B-Trees.
 Each internal node has a buffer to temporarily encode incoming updates as messages.
@@ -105,16 +103,97 @@ While B$^\epsilon$-Trees have been shown to effectively mitigate write amplifica
 A characteristic that makes B$^\epsilon$-Trees unsuitable for high-performance database systems.
 In this thesis, we aim to reduce write amplification in B-Trees while retaining high concurrency.
 
-\section{Write-Optimized B-Trees}
 
 \section{Bw-Trees}
+\inlinesection{Basic Structure.}
+The Bw-Tree \cite{levandoski2013bw} is a B-Tree variant optimized for modern hardware.
+It introduces a latch-free design, leveraging atomic compare-and-swap operations to ensure consistency without traditional locking mechanisms.
+They employ out-of-place updates, where deltas are prepended to nodes as linked lists instead of modifying them in place.
+This avoids cache invalidation, enabling higher concurrency in the tree.
+To update the delta chain, they use atomic \ac{CAS} operations to allow latch-free updates.
+The delta chain of a node is eventually consolidated, by creating a new node that applies the deltas to the base node.
+Outdated base nodes are reclaimed by a garbage collector.
+Additionally, they employ a log-structured store that migrates nodes to contiguous storage locations.
+While they specifically target flash-based storage, the design principles apply to other storage media as well.
 
-\section{Blink-Trees}
+\inlinesection{Reduction in Write Amplification.}
+When a page with a delta-chain is flushed to external storage, only the new deltas need to be written, not the entire page.
+This effectively reduces write amplification, as they only write the changes instead of the whole page.
+The deltas of several pages can be consolidated in memory, allowing to batch writes to external storage.
+Only when creating new pages during consolidation, they need to write the entire page.
+In that case, the node has experienced sufficient modifications that justify writing the entire page.
 
-% \section{Buffer Trees}
+\inlinesection{Read Overhead.}
+The delta chain needs to be traversed for every single node on the read path to a leaf, introducing overhead for every lookup.
+While the goal is to keep cache lines valid, applying deltas out-of-place and traversing a linked list of deltas per node, pollutes the caches of every core.
+When loading a page from external storage, the entire delta chain needs to be read and applied to reconstruct the current state of the node.
+This requires multiple random read operations on storage.
 
-\section{Fractal Trees}
+\inlinesection{Coupling of Layers.}
+This design introduces invasive changes to the B-Tree's implementation, requiring a change in lookup and update logic as well as a consolidation mechanism and garbage collection. 
+Most importantly, it heavily couples the cache management layer with the indexing layer.
+For example, the indirection via the mapping table from page IDs to physical addresses becomes a requirement to implement the \ac{CAS} logic to update the delta chain.
+The data structure needs to be aware of the storage layer and their implementation details to implement this logic.
+This makes changes to the caching layer difficult. 
+For example, pointer swizzling \cite{graefe2014memory} would be infeasible with this design. 
+Everytime a delta is prepended to a node, the swizzled pointers would become invalid.
+Updating each pointer to the new root of the delta chain would require updating all outdated pointers in the tree.
+However, pointer swizzling is a common technique for disk-based database systems \cite{leis2018leanstore} to compete with in-memory database systems.
+Therefore, we want to keep each layer transparent to the other, allowing independent optimizations.
 
-\section{Other B-Tree Optimizations}
+\inlinesection{Summary.}
+Overall, the Bw-Tree presents a novel approach to reduce write amplification in B-Trees and we take notes for our own design.
+In our approach, we aim to introduce a small overhead when loading a page from external storage, not for every read operation in memory.
+Additionally, we want to keep the changes to the B-Tree minimal, introducing a lightweight layer between the data structure and the storage manager that buffers and batches updates.   
 
-\section{Summary}
+\section{Write-Optimized B-Trees}
+In his paper "Write-Optimized B-Trees" \cite{graefe2004write}, Goetz Graefe addresses the write efficiency gap between log-structured file systems and the B-Tree.
+Log-structured data structures write large, sequential chunks of data to disk, making optimal use of the available bandwidth.
+B-Trees, on the other hand, perform many small, random writes by writing individual pages.
+To improve write efficiency in B-Trees, Graefe proposes to batch multiple dirty nodes and write them to disk in a single, large write operation.
+
+The buffer manager can invoke such page migrations for the chosen dirty pages.
+By introducing logical fence keys, the pages can be written to arbitrary locations, without requiring an update to the sibling pointers.
+Since page migrations are optional, the B-Tree can still decide to update pages in place if that is more efficient.
+
+This work provides an approach to get the log-structured style of writing in a B-Tree, without changing the data structure itself.
+It supports the effort of improving write performance in B-Trees, while retaining their high read performance and concurrency.
+While this approach improves write performance by batching multiple pages, in this thesis we address the write amplification caused by individual page and in-place updates.
+We avoid writing individual pages as a whole, by buffering updates and applying them in batches instead at a later point in time.
+
+% TODO: "Modern B-Tree Techniques", "More Modern B-Tree Techniques" (Deferred Updates), Goetz Graefe
+% TODO: "B-tree indexes for high update rates", Goetz Graefe, 
+\section{Transparent Compression}
+Some modern storage devices offer hardware-based lossless data compression transparent to the host.
+The storage device compresses data before writing it to the physical medium.
+When a page is empty, no data is written at all.
+When a page is partially filled, only the actual data is written, not the empty space.
+This can be used to reduce write amplification in B-Trees, as it allows for sparse data structures which do not actually waste space on the storage device.
+
+In the paper \cite{qiao2022compression}, apply out-of-place updates like previous approaches.
+Each node's page is followed by a modification log that records changes to the node.
+In contrast to previous approaches of out-of-place updates, they do not need to collect updates to a node across storage but instead, they can perform a single read operation to load the node and its modification log.
+When loading the node from storage, they apply the modifications in the log to reconstruct the current state of the node.
+When a node is modified, they append the modification to the log instead of rewriting the entire page.
+When a node is flushed to storage, they obtain the delta, and decide whether they invoke the page modification logging which is appended to the page or whether they write the entire page in-place.
+
+This approach reduces write amplification in B-Trees, as they avoid rewriting entire pages for small updates.
+However, for small deltas they still need to perform an \ac{IO} operation to write the modification log to storage.
+The purpose of reducing write amplification is not only to reduce the amount of data written, but primarily to reduce the frequency of writing data by batching updates.
+We want to avoid writing at all for small updates.
+
+A benefit of this approach is that it does not require invasive changes to the B-Tree structure itself.
+In memory, the B-Tree remains the same and only the storage manager needs to be aware of the modification log.
+This only requires overhead at the point of loading and unloading a page to and from external storage.
+A similar approach is taken in this thesis.
+
+However, this approach relies on hardware-based compression which is not widely available.
+We aim to provide a software-based solution that can be used on any storage device.
+
+% \section{Partitioned B-Trees}
+% \section{Blink-Trees} not relevant, just a concurrency mechanism
+% \section{Fractal Trees} same as BepsilonTrees
+% \section{Buffer Trees} covered by BepsilonTrees
+% \section{In-Memory Data Structures} not relevant as we scop disk-based systems, see https://www.cs.cit.tum.de/fileadmin/w00cfj/dis/papers/btrees-are-back.pdf
+% \section{Other B-Tree Optimizations}
+    
