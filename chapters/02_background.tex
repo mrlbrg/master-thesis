@@ -1,5 +1,19 @@
 \chapter{Background}
 
+
+\section{External Storage Characteristics}
+For some time, in-memory database systems like Hyper \cite{kemper2011hyper} have gained popularity due to the decreasing cost of \ac{DRAM}.
+However, that trend has reversed recently, as \ac{DRAM} prices have stagnated \cite{haas2023modern} and \ac{SSD} price-performance-ratios have improved significantly \cite{leis2024leanstore}.
+Therefore, modern database systems are designed to operate efficiently on external storage and since index structures are the performance-critical component, out-of-memory indexing has become a key consideration again.
+B-Trees have been the dominant index structure for out-of-memory indexing, since their high fanout minimizes the number of \ac{IO} operations.
+
+Historically, hard disks were the dominant storage medium.
+Hard disks have a significant imbalance in latency between random and sequential \ac{IO} due to their mechanical nature.
+While \ac{SSD} have a smaller difference between random and sequential \ac{IO}, they still exhibit asymmetric performance, especially in writes \cite{haas2023modern}.
+Therefore, to amortize the cost of random \ac{IO}, database systems and their index structures are designed to access data in pages of multiple kilobytes instead of individual tuples.
+While we will be referencing disk-based systems throughout this thesis, we speak of systems operating on external storage, which can be either disk-based or flash-based.
+
+
 \section{Database System Architecture Overview}
 
 % TODO: Mention that we don't consider writes to the log which should be the same in all systems.
@@ -45,6 +59,8 @@ Having sequential access to a primary key is common, for example when inserting 
 However, secondary keys are often accessed randomly. For example, consider a user's email address as a secondary key.
 When inserting a new user, the email address is likely to be random and not follow any specific order.
 Therefore, secondary indexes often exhibit random access patterns, which can lead to inefficient access patterns in traditional index structures like a B-Tree.
+% TODO: SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
+
 
 \section{B-Trees}
 
@@ -56,9 +72,10 @@ Therefore, secondary indexes often exhibit random access patterns, which can lea
 \end{figure}
 
 B-Trees \cite{bayer1970organization} are a self-balancing tree data structure that maintains sorted data and allows for insertion, deletion, and search operations in logarithmic time, $\mathcal{O}(\log n)$.
-A B-Tree is organized in fixed-size pages, called nodes. These pages are transferred transparently by the buffer manager between external storage and \ac{DRAM}.
-Each node can split off a sibling once is it full. If a node is full and a new key needs to be inserted, the node splits into two nodes, and the middle key is promoted to the parent node.
+A B-Tree is organized in fixed-size pages, called nodes. These pages are transferred and cached transparently by the buffer manager between external storage and \ac{DRAM}.
+Each node can split off a sibling once it is full. If a node is full and a new key needs to be inserted, the node splits into two nodes, and the middle key is promoted to the parent node.
 Additionally, nodes can merge with a sibling if they become less than half full. For simpliticity, we omit merging of nodes in this thesis.
+
 The tree only increases in height when the root node splits.
 Each node contains between 2 and 2k entries, except for the root node, which can contain between 1 and 2k entries.
 Each entry is a triple of a key, a pointer to a child node, and optionally a value (the \ac{TID}).
@@ -80,46 +97,52 @@ The separator keys in internal nodes may or may not occur in the data. An exampl
 The lookup procedure is the same as in a B-Tree, however we always traverse the full tree from root to leaf to find a key.
 Not only does this simplify the B-Tree logic, it also increases the fanout of inner nodes, leading to a lower tree height and therefore fewer \ac{IO} operations for lookups since less pages are involved in reaching the leaf level.
 Also, it allows for efficient range queries by scanning the leaf nodes in order.
-Due to its excellent lookup performance, support for range queries, and simplicity, B-Trees are the dominant data structure for external storage \cite{mdbs2024slides}.
+Due to its excellent lookup performance, support for range queries, and simplicity, B+-Trees are the dominant data structure for external storage \cite{mdbs2024slides}.
 
-% Slotted Node Layout here or in Implementation?
+\subsection*{Disk-Access-Model}
+To analyze the performance of B-Trees in a beyond memory setting, we use the \ac{DAM} \cite{aggarwal1988complexity} \cite{kuszmaul2014fractal}.
+The model has two levels of memory: an internal memory of size $M$ and external storage of infinite size.
+The storage device is organized in fixed-size pages, which are the units of data transfer between memory and storage and determine the size of nodes in a B-Tree.
+For simplicity of this analysis of the \ac{DAM} for B-Trees, we assume that records are constant sized (An assumption that simplifies this explanation but does not hold in practice. 
+Therefore we will \textbf{not} assume this in our method and implementation.) and that nodes are always completely filled.
+When a database has $N$ records, and the storage device has pages of size $P$, the B-Tree has a height of $\log_P(N/P)$, where inner nodes contain $O(P)$ children and leaf nodes contain $O(P)$ records.
+
+Each lookup/insertion/deletion requires a traversal from the root to a leaf node, leading to $\mathcal{O}(\log_P(N/P))$ \ac{IO} operations.
+Since the majority of nodes in the tree are leaf nodes, we can assume that most inner nodes can be cached by the buffer manager.
+In that case, we would require only a single \ac{IO} per B-Tree operation.
+
+In practice, B-Trees are often used to index variable-sized keys and values.
+Therefore, we will consider variable-sized records in our method and implementation.
+However, the \ac{DAM} provides an approximation.
+
+% TODO: Slotted Node Layout here or in Implementation?
 
 \subsection*{Node Size \& Fanout}
 \label{sec:node-size-fanout}
-The node size is a crucial parameter in the design of a B-Tree, as it affects the height of the tree.
-The height of a B-Tree is $\log_f(n)$, where $f$ is the fanout (the number of children per node) of the tree and $n$ is the number of keys in the tree.
-The node size determines how many entries fit into a node, which directly impacts the fanout $f$ of the tree and therefore its height.
-Larger nodes lead to more entries per node, increasing the fanout. 
+The node size (i.e. the page size) is a crucial parameter in the design of a B-Tree, as it affects the height of the tree.
+Larger nodes lead to more entries per node, increasing the fanout for inner nodes and decreasing the height of the tree.
 When we can address more children per node, we need fewer levels in the tree to address the same number of keys.
-Therefore, larger nodes lead to a more shallow tree. 
-Since every lookup requires a traversal from the root to a leaf node, a more shallow tree leads to fewer pages involved in the lookup.
+Since every lookup/insert/delete operation requires a traversal from the root to a leaf node, fewer levels lead to fewer pages involved in the lookup.
 Thus, larger nodes lead to fewer \ac{IO} operations per lookup.
-Additionally, since we need fewer distrinct pages, we induce less page management overhead in the buffer manager.
-This is particularly beneficial for analytical workloads, which often perform large scans and are interested in large parts of the data.
-However, workloads that perform many updates and point queries, we are often only interested in a small portion of the page.
+Additionally, since we need fewer distinct pages, we induce less page management overhead in the buffer manager.
+
+Large nodes are particularly beneficial for analytical, read-heavy workloads, which often perform large scans and are interested in large parts of the data.
+However, workloads that perform many updates and point queries, are sometimes only interested in a small portion of the page.
 As a result, larger nodes lead to more \ac{IO} amplification, as we read and write significantly more data than necessary to perform the operation.
-Research on modern \ac{SSD} shows that a good compromise is given for page sizes of 4 KB \cite{haas2023modern}.
+If subsequent operations follow a sequential access pattern, the \ac{IO} amplification is not a problem, as we will be operating on pages already cached by the buffer manager.
+Ideally, no or very few additional \ac{IO} operations are necessary.
+With random access patterns, however, this \ac{IO} amplification due to large page sizes becomes a problem.
+% Modern \ac{SSD} were shown to perform best at page sizes of 4 KB \cite{haas2023modern}.
+
 % TODO: Make sure this is still correct by the end of the thesis:
-While we will be investigating different node sizes in our evaluation, this parameter is not the primary focus of this thesis.
-Instead, we focus on reducing \ac{IO} amplification in B-Trees at any page size, but larger nodes profit more significantly from our approach.
+While we will be evaluating performance under different node sizes, this tuning parameter is not the primary focus of this thesis.
+Instead, we focus on reducing \ac{IO} amplification in B-Trees at any page size.
+However, larger nodes are expected to profit more significantly from our approach, as they induce more \ac{IO} amplification in B-Trees.
 
-\section{External Storage Characteristics}
-For some time, in-memory database systems like Hyper \cite{kemper2011hyper} have gained popularity due to the decreasing cost of \ac{DRAM}.
-However, that trend has reversed recently, as \ac{DRAM} prices have stagnated \cite{haas2023modern} and \ac{SSD} price-performance-ratio have improved significantly \cite{leis2024leanstore}.
-Therefore, modern database systems are designed to operate efficiently on external storage and since index structures are the performance-critical component, out-of-memory indexing has become a key consideration again.
-B-Trees have been the dominant index structure for out-of-memory indexing, since their high fanout minimizes the number of \ac{IO} operations.
-
-Historically, hard disks were the dominant storage medium.
-Hard disks have a significant imbalance in latency between random and sequential \ac{IO} due to their mechanical nature.
-While \ac{SSD} have a smaller difference between random and sequential \ac{IO}, they still exhibit asymmetric performance \cite{haas2023modern}.
-Therefore, to amortize the cost of random \ac{IO}, database systems and their index structures are designed to access data in pages of multiple kilobytes instead of individual tuples.
-While we will be referencing disk-based systems throughout this thesis, we speak of systems operating on external storage, which can be either disk-based or flash-based.
-
-% SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
 
 \section{Write Amplification}
 Write amplification is the ratio of the amount of data written to storage versus the amount of logical data written by the user.
-For example, if the B-Tree updates an entry of 64 B, but needs to write a full page of 4 KB to storage, the write amplification is 4096 / 64 = 64.
+For example, if the database updates an entry of 64 B, but needs to write a full page of 4 KB to storage, the write amplification is 4096 / 64 = 64.
 Write amplification $WA$ is formally defined as:
 
 \[
@@ -129,19 +152,18 @@ WA = \frac{Bytes Written Physically}{Bytes Written Logically}
 There are multiple layers of write amplification in a database system, which we need to differentiate from each other.
 
 \inlinesection{Application Layer.}
-At the application layer, we consider an external end user interacting with the database system.
-When an end user inserts a tuple through a query, the database system must insert the tuple in the table itself, as well as all indexes that serve to access the tuple later.
-The bytes written logically are the bytes of the new tuple.
-Consequently, we already write more bytes than the user inserted.
+At the application layer, we consider an external end user interacting with the database system, e.g. through SQL.
+When an end user inserts a tuple through a query, the database system must insert the tuple in the table itself, in the \ac{WAL} and all indexes that serve to access the tuple later.
+Consequently, we write significantly more bytes than the user requested logically.
 Additionally, updating a B-Tree index might cause structural changes such as node splits or merges that create new nodes, delete new nodes and update the parent nodes.
-Thus, a database system inherently comes with write amplification. Write overhead to manage data efficiently.
-This is however not the focus of this thesis; we assume all updates to the B-Tree structure as necessary and focus on reducing write amplification in the index layer.
+Thus, a database system inherently comes with write amplification merely to perform its purpose: manage data.
+This is however not the focus of this thesis; we consider all updates to tables, data structures and the \ac{WAL} as necessary and focus on reducing write amplification within the index layer specifically.
 
 \inlinesection{Index Layer.}
 At the index layer, we consider the B-Tree as the user of pages.
 When a B-Tree entry is updated, the bytes written logically include not only the updated key but also any additional metadata required to maintain the tree structure.
 This can include information about node splits, merges, and the promotion of keys to parent nodes.
-The writes are amplified by the B-Tree's need to rewrite entire pages even if only a small portion of the page changed.
+The writes are amplified by the B-Tree's page structure that requires rewriting the entire page even if only a small portion changed.
 As mentioned in \autoref{sec:node-size-fanout}, the node size directly impacts the write amplification at this level.
 This is the write amplification we focus on in this thesis, by minimizing the number of pages written to storage for a given set of updates (see \autoref{chap:method}).
 
@@ -152,9 +174,24 @@ However, due to the characteristics of the storage device, the actual bytes writ
 \ac{SSD} typically operate in larger units called blocks, which consist of multiple pages.
 When a page is updated, the entire block containing that page must be rewritten, leading to write amplification.
 Additionally, when garbage collection is performed, valid pages within a block must be copied to a new block before the old block can be erased and reused.
-Recent research have observed write amplification factors up to 10x on modern \ac{SSD} \cite{haas2025ssd}.
+Recent research observed write amplification factors up to 10x on modern \ac{SSD} \cite{haas2025ssd}.
 Consequently, a page write of 4 KB can lead to physical writes of up to 40 KB on the device, using up valuable bandwidth and wearing out the device faster.
-While we do not focus on hardware-level write amplification in this thesis, it shows the importance of reducing write amplification at the database system level.
-Any unnecessary write at the database system level is multiplied by the storage device.
+While we do not focus on hardware-level write amplification in this thesis, it shows the importance of reducing write amplification at the host level.
+Unnecessary writes by the database system are multiplied by \ac{SSD}.
 
 % See Bepsilon paper for more analytical model
+
+\section{Read Amplification}
+Read amplification is the number of \ac{IO} operations required to answer a query \cite{kuszmaul2014fractal}.
+As described above, a B-Tree lookup requires a traversal from the root to a leaf node, which is $\mathcal{O}(\log_P(N/P))$ \ac{IO} operations in the \ac{DAM}, assuming that our cache is cold.
+In practice, the buffer manager caches pages in \ac{DRAM}, which can significantly reduce the number of \ac{IO} operations.
+To answer range queries, we can scan the leaf nodes in order, which is efficient in B+-Trees.
+Therefore, we only traverse the tree once to find the start of the range and then scan the leaf nodes sequentially.
+Read amplification is not the focus of this thesis, but it will help understanding the tradeoffs of alternative data structures in \autoref{chap:related-work}.
+
+\section{Space Amplificaiton}
+Space amplification is the ratio of the amount of space used by the data structure versus the amount of logical data stored \cite{kuszmaul2014fractal}.
+Most nodes in a B-Tree are leaf nodes, which store the actual data.
+However, inner nodes only store keys and child pointers to guide the search, inflating the space usage.
+Additionally, B-Tree nodes are not always completely filled.
+Therefore, B-Trees exhibit some space amplification.

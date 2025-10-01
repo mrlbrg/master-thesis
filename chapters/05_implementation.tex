@@ -1,6 +1,72 @@
 \chapter{Implementation}
-\section{Environment and Tools Used}
+
+% \section{Environment and Tools Used}
+
 \section{System Architecture}
-\section{Data Layout and Page Management}
-\section{Caching and Buffering Strategies}
+% TODO: Figure from System Architecture
+
+% We have implemented our system according to \autoref{fig:db-architecture} in C++. 
+In the following, we inspect our particular implementation for each component.
+
+% Slotted Page Nodes to address variable size keys/values
+% Keys in index can be variable, Values are TID
+% Key in Delta-Tree is PageID to fixed-size, Values are variable-size because deltas for a particular page can be of any size.
+
+\subsection*{Buffer Manager}
+% Our buffer manager serves our system with pages, transparently swapping them between memory and external storage.
+% Upon construction, it receives a page_size that determines the fixed-sized number of bytes of every page in the system, as well as a page_count that determines the number of pages that can be present in the memory pool at once.
+
+% fix_page
+% unfix_page
+
+% Serves pages between memory and storage
+% Buffer Frames get a function pointer from an `PageLogic` interface that returns a bool whether the page should be written out or not.
+
+\subsection*{Slotted Pages}
+% TODO: Figure of Slotted Pages
+
+% Support for variable sized values
+
+\subsection*{B-Tree}
+% Templated B-Tree on Key/Value Type
+% Support for variable sized keys/values
+% TODO: Maybe explain my B-Tree node structure for leafs and inner nodes like marcus müller does in his paper.
+% Then its easiert to show the changes that we make through tracking.
+
+\subsection*{BBB-Tree}
+% Templates on PID and Deltas
+% Contains a B-Tree and a Delta Tree
+% Templated on Key/Value type.
+
+\subsection*{Database}
+
+\section{Algorithms for Lookups, Insertion, Deletion, and Rebalancing}
+
+% Approximating the write amplifciation: e.g. an split and following insert can lead to more than the node size to change.
+% Explain how we track state on a page and ensure that we do not loose changes. Delta Image + Storage Image = Current Image.
+% Go into tracking Write Amplification and Tracking Changes for each.
+% Approximating the write amplifciation: e.g. an split and following insert can lead to more than the node size to change.
+\subsection*{Lookup}
+
+\subsection*{Insertion}
+
+\subsection*{Deletion}
+
+\subsection*{Rebalancing}
+
+\section{Testing and Verification}
+% Unit Tests
+
 \section{Challenges and Trade-offs}
+% Want to keep compactification. Otherwise we could put changes in delta tree and then do unneccessary splits because the node does not have enough space after applying the changes again witout compactification.
+
+% After a node split we generally want to write out the page because it carries a lot of information and compactification work savings.
+% Problem of recursive calls to the Delta Tree. Locking the tree when operating on it. Otherwise it could access uninitialized nodes during splits for example.
+
+% Scanning Deltas when evicting VS. keeping the DeltaTree up to date during manipulation of the B-Tree.
+
+% Want to keep Deltas in the tree after applying them to be able to just throw them away when only reading. Less changes to the tree
+% However: what do we do with stale deltas? Do we want to apply the at some point?
+% We have an incentive to keep the Delta Tree small to batch changes more effectively. Therefore we can evict changes from the Delta Tree if they have not been used for a while.
+% Also we should only track small changes. If a page has a lot of changes, it is better to write it out and not track it anymore.
+

@@ -26,14 +26,13 @@
 Efficiently managing large data sets is a core requirement for database systems. 
 % Not only have \ac{SSD} become drastically cheaper, they also achieve excellent throughput, making them an attactive, cost-effective storage medium \cite{haas2023modern}.
 % Yet, external storage accesses remain magnitudes slower than main memory accesses.
-The largest overhead in beyond memory systems lies in \ac{IO} operations on external storage. 
-Therefore, minimizing \ac{IO} operations remains the fundamental premise for designing high performance modern \ac{DBMS}.
+% The largest overhead in beyond memory systems lies in \ac{IO} operations on external storage. 
+Therefore, minimizing \ac{IO} operations remains the fundamental premise for designing modern, high-performance \ac{DBMS}.
 Primarily, this is done by caching frequently accessed pages in \ac{DRAM} using a buffer manager \cite{leis2018leanstore}.
-All data in the system are stored in pages, the buffer manager can uniformly serve and cache pages for all components in the system.
+All data in the system is stored in pages, which the buffer manager can cache and uniformly serve to all components in the system.
 This modular design allows a separation of concerns between the buffer manager and its users, such as indexes and data structures.
 However, this also means that the buffer manager is agnostic of its user's access patterns.
 While the buffer manager minimizes the number of \ac{IO} operations to the best of its knowledge, every component in the systems must design its access patterns to be as efficient as possible. 
-
 
 A prominent example of such a component is the B-Tree. 
 B-Trees are the dominant data structure for indexing large datasets in disk-based \ac{DBMS} due to their excellent lookup performance, support for range queries, and simplicity.
@@ -43,8 +42,8 @@ B-Trees organize their nodes as pages. Due to their sorted order, accessing rand
 At eviction time, each modified page requires a full rewrite to storage, even if only a small portion of the page changed.
 \autoref{fig:access-pattern-comparison} illustrates this effect by comparing a sequential and a random update pattern in a B-Tree.
 We consider three updates to the tree.
-In the sequential update, only three pages are read and one of them is written.
-In the random update, six pages are read and three of them are written.
+In the sequential update, only three pages are read and one of them is written to.
+In the random update, six pages are read and three of them are written to.
 Merely changing the access pattern from sequential to random leads to a threefold increase in the amount of data written to storage.
 If we assume that each page is 4 KB, the sequential update requires one storage write of 4 KB.
 The random update requires three storage writes of 12 KB in total.
@@ -57,7 +56,7 @@ Additionally, \ac{SSD} come with their own write amplification due to their flas
 This leads to a multiplication of unnecessary physical writes. 
 Lastly, due to \ac{SSD}'s limited write endurance, this not only degrades performance but also wears out the device faster.
 
-In summary, to design a truly efficient, high performance system, we must minimize \ac{IO} operations in all components of the storage stack. 
+In summary, to design a truly efficient, high-performance system, we must minimize \ac{IO} operations in all components of the storage stack. 
 In this thesis, we focus on closing the efficiency gap in B-Trees by reducing write amplification.
 
 \section{Problem Statement}
@@ -98,7 +97,7 @@ Instead, we focus on a lightweight extension to the traditional B-Tree that can 
 \section{Contributions}
 % Summarize the main contributions of your thesis.
 This thesis introduces 3B-Tree, a B-Tree variant that incorporates a lightweight buffering layer to minimize write amplification.
-The buffering layer aggregates and batches write operations, reducing the frequency and volume of writes to external storage.
+The buffering layer batches small write operations, reducing the frequency and volume of writes to external storage.
 This design preserves concurrency and read performance of traditional B-Trees while effectively mitigating write amplification.
 We minimize \ac{IO} operations to those strictly necessary. 
 

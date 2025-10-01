@@ -2,4 +2,8 @@
 \section{Summary of Findings}
 \section{Limitations}
 \section{Future Directions}
+% Other data strcutured than B-Tree that have more batching effect
+% Use levelling that keeps inserting into another level if write amplification is too high. Better batching.
+% When the Delta Tree gets too big, we just transfer random writes from one tree to another.
+% Therefore it only makes sense to track small changes. If a page has a lot of changes, it is better to write it out and not track it anymore.
 \section{Potential Applications}
