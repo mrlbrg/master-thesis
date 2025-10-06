@@ -33,7 +33,7 @@ Therefore, all components accessing physical data interact with the buffer manag
 When a query is executed, the index is accessed by a given key (e.g. the primary key) to find the \ac{TID} of the relevant tuple.
 The index is typically stored in pages, which are loaded into the buffer pool by the buffer manager.
 Using the \ac{TID}, the corresponding tuple can be retrieved from the slotted pages.
-The \ac{TID} encodes the page identifier and the slot number within the page.
+The \ac{TID} encodes the \ac{PID} and the slot number within the page.
 When a tuple is updated, the corresponding page is loaded into the buffer pool, modified, and marked as dirty.
 Should the buffer pool be full, the buffer manager evicts pages based on its replacement policy.
 Clean, unchanged pages can be discarded, while dirty, modified pages must be written back to external storage.

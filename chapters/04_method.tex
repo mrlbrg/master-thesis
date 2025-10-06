@@ -162,7 +162,7 @@ However, we require tracking information on the B-Tree nodes.
 
 \subsection*{Delta Tree}
 The Delta Tree is the component that buffers changes of B-Tree nodes.
-The Delta Tree itself is a B-Tree with Page IDs as keys and lists of changes as values.
+The Delta Tree itself is a B-Tree with \ac{PID}s as keys and lists of changes as values.
 The buffer manager calls back the Delta Tree everytime a dirty B-Tree page is evicted from memory or loaded into memory.
 
 \begin{enumerate}
@@ -191,7 +191,7 @@ Therefore, we want to keep the Delta Tree small to batch changes more effectivel
 
 \section{Implications on Write Amplification}
 We can illustrate the effect of our approach on write amplification with a simple example.
-\autoref{fig:delta-tree-example} shows a B-Tree with updates across three nodes with Page IDs {1, 2, 4}.
+\autoref{fig:delta-tree-example} shows a B-Tree with updates across three nodes with \ac{PID}s {1, 2, 4}.
 In a traditional B-Tree, we would need to write all three pages to storage.
 Assuming a page size of 4 KB and each update being 64 B, the write amplification is $(4096 B / 64 B) * 3 = 192$.
 
@@ -199,9 +199,8 @@ With our approach, we can buffer the changes of the three pages in the Delta Tre
 In this example, the Delta Tree only needs to write one page to storage, containing the three updates.
 Assuming a page size of 4 KB again and approximating the delta entries to be 64 B each, the write amplification is now $4096 B / (3 * 64 B) = 21.33$.
 In this simple example, we have reduced the write amplification by a factor of >9.
-We have batched three small writes into one write.
 
-This demonstrates the goal of our approach: batching small writes on many distinct pages into fewer pages.
+This demonstrates the goal of our approach: batching small writes on many distinct pages into larger writes on fewer pages.
 This way, we can reduce the number of pages written to storage for a given set of updates, thereby reducing write amplification.
 
 \begin{figure}[htpb]
@@ -209,13 +208,13 @@ This way, we can reduce the number of pages written to storage for a given set o
   \begin{subfigure}[t]{0.95\textwidth}
     \centering
     \includegraphics[width=\textwidth]{figures/b_tree_with_pid.pdf}
-    \caption{A B-Tree with updates to nodes with Page ID {1, 2, 4}.}
+    \caption{A B-Tree with updates to nodes with \ac{PID} {1, 2, 4}.}
   \end{subfigure}
   \hfill
   \begin{subfigure}[t]{0.95\textwidth}
     \centering
     \includegraphics[width=\textwidth]{figures/delta_tree_update.pdf}
-    \caption{The corresponding Delta Tree. Buffered the changes of B-Tree nodes by their Page IDs {1, 2, 4}.}
+    \caption{The corresponding Delta Tree. Buffered the changes of B-Tree nodes by their \ac{PID}s {1, 2, 4}.}
   \end{subfigure}
   \caption{Example of a B-Tree and its corresponding Delta Tree. The B-Tree has three updated nodes marked in red. In this example, we require only one page write for the Delta Tree instead of three writes for the B-Tree.}
   \label{fig:delta-tree-example}

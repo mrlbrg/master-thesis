@@ -134,7 +134,7 @@ This requires multiple random read operations on storage.
 \inlinesection{High Coupling.}
 This design introduces invasive changes to the B-Tree's implementation, requiring a change in lookup and update logic as well as a consolidation mechanism and garbage collection. 
 Most importantly, it heavily couples the cache management layer with the indexing layer.
-For example, the indirection via the mapping table from page IDs to physical addresses becomes a requirement to implement the \ac{CAS} logic to update the delta chain.
+For example, the indirection via the mapping table from \ac{PID}s to physical addresses becomes a requirement to implement the \ac{CAS} logic to update the delta chain.
 The data structure needs to be aware of the storage layer and their implementation details to implement this logic.
 This makes changes to the caching layer difficult. 
 For example, pointer swizzling \cite{graefe2014memory} would be infeasible with this design. 
