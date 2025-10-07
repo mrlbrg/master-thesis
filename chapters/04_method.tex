@@ -3,8 +3,7 @@
 
 \section{Design Goals}
 \autoref{chap:related-work} reviewed existing approaches to reduce write amplification and their trade-offs.
-At the same time, we identified a gap in existing work that we aim to address in this thesis.
-As a result, we identified the following design goals for our approach to reduce write amplification in B-Trees.
+We disclose the gaps in existing work that we aim to address in this thesis and identify the following design goals for our approach to reduce write amplification in B-Trees.
 
 \subsection*{Reduce Write Amplification}
 Write Amplification in B-Trees is primarily caused by the page-oriented design that requires rewriting entire pages to storage even if only a small portion changed.
@@ -66,12 +65,12 @@ The buffer manager is only aware that a page is dirty and needs to be written to
 It does not know which parts of the page changed.
 Therefore, we keep track of the modifications made to each page in the B-Tree.
 Our component interacts with the buffer manager to intercept the eviction of dirty pages.
-When evicting a dirty page, we buffer the changes in the Delta Tree instead of writing them to storage immediately.
+When evicting a dirty page, we can buffer the changes in the Delta Tree instead of writing them to storage immediately.
 This way, we can defer small random writes until we have enough changes to justify a full rewrite to storage.
 In the Delta Tree we can batch changes to the same page.
 
 \inlinesection{Maintain Read Performance.}
-To nodes in memory this process is transparent.
+To nodes in memory, this method is transparent.
 When searching pages in memory, we do not incur overhead.
 
 The only time we incur overhead is when loading a page from storage or unloading it to storage.
@@ -95,7 +94,6 @@ Essentially, we mark entries as dirty.
 
 The Delta Tree is a separate component that interacts with the buffer manager.
 We do not dictate how the buffer manager is implemented or how it manages pages.
-For example, we do not require a mapping table.
 As a result, we maintain a low coupling between the data structure and the storage manager, allowing for optimizations in both layers independently.
 For example, pointer swizzling is an optimization that could be applied with our method.
 
@@ -144,7 +142,7 @@ That way, we can buffer the "delta" image of a node at eviction-time and apply i
 \item \textbf{Injecting Callbacks:}
 As described above, we need to execute specific logic at eviction time and loading time of a B-Tree page.
 However, the B-tree has no control over the point in time a page is evicted or loaded.
-Therfore, we inject callbacks into the buffer frames that are later invoked by the buffer manager.
+Therefore, we inject callbacks into the buffer frames that are later invoked by the buffer manager.
 Whenever we request a B-Tree page from the buffer manager, we register function pointers for the Delta Tree.
 At eviction- and loading-time, these function pointers are called by the buffer manager to execute the necessary logic.
 \end{enumerate}
@@ -157,8 +155,7 @@ In that case, we have many updates to a B-Tree node and therefore want to perfor
 We would have introduced the most overhead for situations without any benefit.
 Therefore, we only interact with the Delta Tree at eviction- and loading-time of a B-Tree page instead.
 Only if we decide to buffer changes, we insert them into the Delta Tree.
-This way, we keep the overhead on the B-Tree itself minimal.
-However, we require tracking information on the B-Tree nodes.
+This way, we keep the overhead for B-Tree operations minimal.
 
 \subsection*{Delta Tree}
 The Delta Tree is the component that buffers changes of B-Tree nodes.

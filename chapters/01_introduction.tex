@@ -3,7 +3,6 @@
 
 \chapter{Introduction}\label{chapter:introduction}
 
-\section{Motivation}
 \begin{figure}[htpb]
   \centering
   \begin{subfigure}[t]{0.95\textwidth}
@@ -34,7 +33,7 @@ This modular design allows a separation of concerns between the buffer manager a
 However, this also means that the buffer manager is agnostic of its user's access patterns.
 While the buffer manager minimizes the number of \ac{IO} operations to the best of its knowledge, every component in the systems must design its access patterns to be as efficient as possible. 
 
-A prominent example of such a component is the B-Tree. 
+A prominent example of such a component is the B-Tree \cite{bayer1970organization}.
 B-Trees are the dominant data structure for indexing large datasets in disk-based \ac{DBMS} due to their excellent lookup performance, support for range queries, and simplicity.
 However, random writes, a particularly common pattern for secondary indexes, lead to inefficient access patterns that a buffer manager cannot hide for out-of-memory workloads.
 
@@ -52,9 +51,8 @@ Random writes introduce \emph{write amplification}, a phenomenon where the amoun
 Write amplification inflates \ac{IO} operations, wastes bandwidth, and ultimately increases latency in bandwidth-bound scenarios.
 For example in cloud environments, where storage can be remote, an unnecessary network round-trip directly translates to increased latency and reduced throughput in the system.
 
-Additionally, \ac{SSD} come with their own write amplification due to their flash translation layer performing garbage collection \cite{haas2023modern}. 
-This leads to a multiplication of unnecessary physical writes. 
-Lastly, due to \ac{SSD}'s limited write endurance, this not only degrades performance but also wears out the device faster.
+Additionally, the \ac{SSD} comes with its own, internal write amplification due to its flash translation layer performing garbage collection \cite{haas2023modern}. 
+This leads to a multiplication of unnecessary physical writes, wearing out the device faster.
 
 In summary, to design a truly efficient, high-performance system, we must minimize \ac{IO} operations in all components of the storage stack. 
 In this thesis, we focus on closing the efficiency gap in B-Trees by reducing write amplification.
@@ -71,7 +69,6 @@ Secondly, the reduced space for pivots in each node reduces the fanout of the tr
 Most importantly though, it significantly limits concurrency in the data structure, as the hottest nodes are locked for longer periods of time to write the update messages, reducing throughput in the tree.
 
 We identify a research gap for a B-Tree variant that effectively reduces write amplification while preserving the excellent query efficiency and concurrency traits of traditional B-Trees.
-This thesis addresses the problem of write amplification in B-Trees while preserving their query efficiency and operational practicality.
 
 % Figure: Show write amplification gap between sequential and random writes. Show difference in latency of inserting x keys, difference in IO operations, difference in written volume.
 
@@ -98,7 +95,14 @@ Instead, we focus on a lightweight extension to the traditional B-Tree that can 
 % Summarize the main contributions of your thesis.
 This thesis introduces 3B-Tree, a B-Tree variant that incorporates a lightweight buffering layer to minimize write amplification.
 The buffering layer batches small write operations, reducing the frequency and volume of writes to external storage.
-This design preserves concurrency and read performance of traditional B-Trees while effectively mitigating write amplification.
-We minimize \ac{IO} operations to those strictly necessary. 
+% Instead of changing the B-Tree structure itself, we introduce a secondary data structure, the Delta Tree, that buffers changes to B-Tree nodes.
+When a B-Tree node is evicted from memory, we determine whether it has changed significantly enough to warrant a full write to storage.
+If not, we buffer the changes.
+% When loading a B-Tree node from storage, we apply any buffered changes from the Delta Tree to reconstruct the most recent state of the node.
+Essentially, we minimize \ac{IO} operations to those strictly necessary. 
+
+The novelty of our approach lies in its non-intrusive design: We only perform additional operations when B-Tree nodes are exchanged between memory and external storage.
+In contrast to other approaches (see \autoref{chap:related-work}), we neither alter the B-Tree structure or its fundamental operations, nor do we impact concurrency or read performance in the tree.
+This makes our approach easy to integrate into existing systems and preserves the desirable properties of traditional B-Trees.
 
 We hereby contribute to the broader effort of minimizing overhead of beyond memory systems and designing efficient, high-performance datbase systems for modern hardware.
