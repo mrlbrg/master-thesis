@@ -151,9 +151,7 @@ We then describe how we use the tracking information in the B-Tree nodes to extr
 
 % TODO: Check which of these is still correct by the end of this thesis.
 We do not implement concurrency or node merges in our implementation and therefore do not describe them here.
-However, all algorithms can be extended to support concurrency by taking locks when fixing nodes.
-For example, when splitting a node, we do not fix nodes in an upward motion to update parent nodes.
-Instead, we restart traversal from the root node, fixing nodes in a downward motion only.
+However, all algorithms were implemented with concurrency in mind and therefore can be extended to support it by introducing locks when fixing nodes.
 
 \begin{figure}[htbp]
   \centering
@@ -161,10 +159,6 @@ Instead, we restart traversal from the root node, fixing nodes in a downward mot
   \caption{The state machine of a slot's state. The state always resembles the delta of a slot in comparison to its image on disk. Therefore, every slot starts in the \texttt{Unchanged} state when being loaded from memory. A slot's lifetime starts with an insertion (highlighted in blue). Its lifetime ends when the slot is deleted (highlighted in red). When a page is unloaded back to storage, all \texttt{Inserted} and \texttt{Updated} slots are reset to \texttt{Unchanged} state. A slot marked as \texttt{Deleted} is actually deleted from the node once the page is unloaded.}
   \label{fig:slot-states}
 \end{figure}
-
-% Explain how we apply deltas to a page that exceeds its size.
-
-% Explain how we track state on a page and ensure that we do not loose changes. Delta Image + Storage Image = Current Image.
 
 \subsection*{Lookup}
 A lookup operation is straightforward in a BBB-Tree, we merely perform a standard B-Tree lookup.
@@ -196,7 +190,7 @@ When inserting a new entry into a node, we need to update the tracking informati
 Firstly, we increase the \texttt{bytes\_changed} field in the header by the size of the new entry and the size of the new slot.
 Secondly, we set the \texttt{state} field of the new slot to \texttt{Inserted}.
 
-A new slot always starts in the \texttt{Inserted} state, as it does not exist on disk.
+A new slot always starts in the \texttt{Inserted} state, as it does not exist on disk (see \autoref{fig:slot-states}).
 Any subsequent updates to this slot do not change this state, as to the disk image it is still a new slot.
 During delta extraction, we simply store the latest key and value of this new slot.
 If the new entry is deleted again before the page is evicted, we can simply discard the slot and do not need to store any delta for it.
@@ -240,18 +234,18 @@ For example, during a node split we remove half of the slots and their data, jus
 While we do not implement deletion tracking in our current implementation, we describe how we would implement it here for completeness.
 When deleting an existing entry in a node, we increase the \texttt{bytes\_changed} field in the header by the size of the entry and the size of the slot only if the entry was previously unchanged.
 When it was previously inserted, we decrease the \texttt{bytes\_changed} field, since the insert never happened from the perspective of the disk image of the node.
-For the same reason, we only actually delete the slot and entry if it was also inserted since its last write to memory.
+For the same reason, we only actually delete the slot and entry if it was also inserted since its last write to storage.
 In any other case, we cannot immediately delete the slot.
 This is, because we must indicate the deletion to the Delta Tree.
-Without a slot to track the deletion, we would not be able to create a delta for it, since the entry would simply be gone.
-When loading the node again next time from storage, we would not be able to reconstruct the deletion.
+The entry exists on disk and without an entry to track the deletion, we would not be able to create a delta for it.
+When loading the node again from storage, the deleted entry would reappear.
 Therefore, we set the \texttt{state} field of the slot to \texttt{Deleted} instead.
 Only when the page is written to disk, we actually delete all slots marked as \texttt{Deleted} from the node.
 
 \subsection*{Split}
 \label{subsec:split}
 When a leaf node does not have enough space to accommodate a new entry, we need to split the node first.
-To address the possibility of concurrent splits, we use a restart mechanism.
+To address the possibility of concurrent splits in the future, we use a restart mechanism.
 
 We first traverse the tree down to the appropriate leaf node as described in the lookup operation.
 However this time, we keep track of the path taken down the tree and keep the pages fixed in memory.
@@ -269,7 +263,7 @@ The new fence key is the largest key in the left node after the split.
 We can move upwards now, since we locked the path exclusively when traversing down the tree.
 If the parent node does not have enough space to accommodate the new fence key and child pointer, we need to split the parent node as well.
 We repeat this process until we reach a node that has enough space in an upwards motion.
-Should we reach the root node and it does not have enough space, we create a new root node and increase the tree's height by one.
+Should we reach the root node and it does not have enough space, we create a new root node, increasing the tree's height by one.
 Once a node has enough space, we can insert the new entry and move back down the tree to insert the respective entries on each level.
 Again, we might need to split nodes on the way down again, since we support variable-sized keys.
 Therefore, we can repeatedly move down and up the tree until we reach the leaf level again.
@@ -278,7 +272,7 @@ When reaching the leaf level, we repeat the process until the leaf has enough sp
 Finally, we insert the new entry into the leaf node.
 
 Some implementations use "safe" inner pages that always have enough space to accommodate a new entry \cite{mdbs2024slides}.
-This simplifies the split operation, as we never need to propagate splits upwards.
+This simplifies the split operation, as we never have cascading splits that need to propagate up the tree.
 However, this is limited to fixed-sized keys.
 With variable-sized keys, we cannot know how much space we need to reserve in the inner nodes to accommodate a new fence key.
 
@@ -395,7 +389,7 @@ We tested the buffer manager, the slotted pages, the B-Tree, and the BBB-Tree se
 We also wrote integration tests to test the interaction between the components.
 
 % \section{Challenges and Trade-offs}
-% TODO.
+% TODO: Maybe add this section.
 % Want to keep compactification. Otherwise we could put changes in delta tree and then do unneccessary splits because the node does not have enough space after applying the changes again witout compactification.
 
 % Locking a node to protect recursive evictions.

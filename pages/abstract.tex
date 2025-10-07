@@ -3,7 +3,7 @@
 % Why should you read this thesis? Why do we choose B-Trees?
 B-Trees are the most used data structure in modern database systems, due to their efficient access patterns and excellent lookup performance on large volumes of data.
 % What is the problem in B-Trees? Why are random writes important?
-However, B-Trees perform suboptimal under random writes, a particularly common pattern for secondary indexes.
+However, B-Trees perform suboptimally under random writes, a particularly common pattern for secondary indexes.
 Such workloads introduce write amplification in B-Trees, a phenomenon where the amount of data written to storage is significantly larger than the amount of data that logically changed.
 % Why is solving write amplification important?
 As a result, B-Trees suffer increased latency, reduced throughput, and premature device wear with write-intensive workloads.
