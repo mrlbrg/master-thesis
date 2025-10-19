@@ -1,4 +1,5 @@
 \chapter{Implementation}
+\label{chap:implementation}
 
 % TODO: Mention that we don't implement concurrency or node merges.
 % TODO: Mention that we don't actually implement deletes and updates.
@@ -89,7 +90,7 @@ As described above, we template the B-Tree on a third boolean template parameter
 When set to true, we extend the page header and slots with additional fields to track changes made to the node, as shown in \autoref{fig:b-tree-with-tracking}.
 
 \inlinesection{Header.}
-The header is extended by a \texttt{bytes\_changed} field to track the degree of write amplification on the page.
+The header is extended by a \texttt{uint16\_t bytes\_changed} field to track the degree of write amplification on the page.
 Everytime a change is made to the page, we increase this counter by the number of bytes changed.
 When the page is evicted, we can use this information to decide whether to write out the page or not.
 However, this is only an approximation of the actual write amplification, as some changes might be overwritten by subsequent changes.
@@ -98,10 +99,14 @@ For example, a node split, where we remove half the entries, followed by several
 \inlinesection{Slots.}
 Each slot is extended by a \texttt{state} field to track whether the corresponding entry was \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated} or \texttt{Deleted} since the last time the page was written to storage.
 More specifically, it does not track the change of the entry itself, but rather the change of the entry from the perspective of the node.
-For example, if an entry it split off during a node split, the slot is deleted from the perspective of the node.
+For example, if an entry is split off during a node split, the slot is deleted from the perspective of the node.
 The entry still exists in the tree, but it is now part of a different node.
 To the new sibling node, where we move over the split off entry, the slot is marked as \texttt{Inserted}.
 The state machine of the operation state field is shown in \autoref{fig:slot-states} and elaborated in \autoref{sec:algorithms}.
+
+Since we only have four states, we can store the state in two bits only.
+Therefore, we can hide the space overhead of the state field by using the upper two bits of the 32 bit offset field in the slot, assuming that we do not need more than 30 bits to address all offsets on the page.
+This is crucial to keep the fanout of the tree as high as possible. Otherwise we would introduce more pages than the baseline B-Tree, negatively impacting performance.
 
 \inlinesection{Buffer Manager Integration.}
 Our Delta Tree uses this information to determine which changes to store.
@@ -418,3 +423,4 @@ We also wrote integration tests to test the interaction between the components.
 
 % Deltas have lower fanout because of variable sized values. Therefore we have a taller tree and more IOs to access a delta.
 
+% Locking the Delta Tree to protect against recursive calls.

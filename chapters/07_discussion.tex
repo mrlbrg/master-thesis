@@ -1,5 +1,6 @@
 \chapter{Discussion and Future Work}
 \section{Summary of Findings}
+% “Our approach reduces write amplification by 40–60% while maintaining within 5% of baseline read latency.”11,848
 \section{Limitations}
 % Size of the delta tree. 
 \section{Future Directions}
@@ -8,3 +9,14 @@
 % When the Delta Tree gets too big, we just transfer random writes from one tree to another.
 % Therefore it only makes sense to track small changes. If a page has a lot of changes, it is better to write it out and not track it anymore.
 \section{Potential Applications}
+
+% Bloom filter in memory to lookup the delta tree if necessary only when loading a B-Tree node.
+% Results could look very different on a buffer manager that evicts pages smarter. We have evaluated on heavily skewed workloads, where the buffer manager could be much more effective than evicting at random.
+
+% Method heavily relies on the Delta Tree being small enough to be cached in memory or enough memory being available:
+% Caching the Delta Tree in memory effectively is critical to keep read amplification low.
+% Caching the Delta Tree in memory is cirtical to reduce write amplificaiton.
+
+% this method could be applied to the table data as well, maybe where more writes happen than reads.
+
+% Only use DeltaTree when updates are spread out over many pages. If updates are concentrated on few pages, it is better to write them out directly.
