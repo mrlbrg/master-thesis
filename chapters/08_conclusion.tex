@@ -1,3 +1,51 @@
 \chapter{Conclusion}
+
+This thesis set out to address the problem of excessive write amplification in traditional B-tree index structures, which impacts efficiency and storage longevity in modern database systems. 
+While B-trees remain the most widely used indexing structure due to their efficient lookups and range queries, their page-oriented update model causes high write costs under random or mixed workloads. 
+The objective of this work was therefore to design, implement, and evaluate a method that reduces write amplification in B-trees while preserving their core advantages: simplicity, concurrency, and read performance.
+
 \section{Recap of Contributions}
-\section{Final Thoughts}
+
+To achieve this goal, this thesis introduced the 3B-tree, a lightweight, write-aware extension of the traditional B-tree.
+The key idea was to introduce an intermediate buffering structure, the Delta Tree, that intercepts page evictions and selectively batches modifications instead of performing immediate full-page writes to external storage. 
+By deferring and consolidating small changes, the 3B-tree minimizes unnecessary \ac{IO} operations without altering the internal layout and fundamental operations of the B-tree.
+
+The main contributions of this work can be summarized as follows:
+
+\begin{itemize}
+    \item \textbf{A leightweight buffering layer for B-trees:}  
+    The Delta Tree acts as a transparent, non-intrusive extension between the B-tree and buffer manager, reducing write amplification through selective batching and deferred persistence.
+
+    \item \textbf{A detailed implementation and evaluation:}  
+    The 3B-tree was implemented in C++ and benchmarked under realistic workloads derived from the Wikipedia Pageviews dataset. 
+    Experiments investigated write amplification, read overhead, and space utilization.
+
+    \item \textbf{Empirical evidence of reduced write amplification:}  
+    Across a variety of configurations, the 3B-tree achieved up to 70\% fewer page writes than a standard B-tree. This confirms that lightweight batching can significantly mitigate write amplification. 
+
+    \item \textbf{Identification of workload-dependent trade-offs:}  
+    Caching is the fundamental idea of this method, therefore a certain memory availability is required.
+    Further, the evaluation revealed that the balance between write reduction and read amplification affects overall performance.
+    The 3B-tree performs best in moderately sized buffer pools and update-heavy workloads.
+\end{itemize}
+
+The reason B-trees are so widely used is their balanced performance characteristics across a range of workloads.
+However, their random write performance lags behind the otherwise strong efficiency.
+With the 3B-tree we sacrifice some read performance but enable substantial write reductions in write-intensive scenarios.
+We argue that this evens out the performance landscape between read and write operations in traditional B-trees.
+
+The goal of this thesis has thus been met by demonstrating that write amplification in B-trees can be substantially reduced through a simple buffering extension.
+
+\section{Significance of Results}
+The results of this work demonstrate that substantial write amplification reductions can be achieved without resorting to invasive structural changes, a limit on concurrency, or a prohibitive read overhead such as LSM-Trees or B$\varepsilon$-Trees.
+Moreover, by lowering write amplification, the 3B-tree indirectly mitigates device-level wear on SSDs, contributing to longer hardware lifespans and reduced operational cost. 
+
+\section{Outlook and Final Thoughts}
+The promising results of the 3B-tree open multiple paths for future research. 
+Extending the design to a fully concurrent, crash-consistent implementation would enable integration into production database systems. 
+Additionally, levelled Delta Trees or log-structured buffers instead of trees could further optimize the trade-off between write reduction and read overhead.
+
+\bigskip
+
+In conclusion, this thesis demonstrates that \emph{reducing write amplification in B-trees is feasible}. 
+The 3B-tree is a step towards bridging the gap between high-performance and write-efficient indexing.

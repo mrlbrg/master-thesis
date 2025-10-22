@@ -63,31 +63,31 @@ We then create a new \ac{TID} for the tuple and insert it into the index.
   \label{fig:slotted-page}
 \end{figure}
 
-\subsection*{B-Tree}
+\subsection*{B-tree}
 
-As shown in \autoref{fig:leaf-node}, each node in our B-Tree is implemented similar to a slotted page to accommodate variable-sized keys and values.
+As shown in \autoref{fig:leaf-node}, each node in our B-tree is implemented similar to a slotted page to accommodate variable-sized keys and values.
 While we depict a leaf node in the figure, inner nodes are implemented similarly.
 Leaf nodes store keys and values, whereas inner nodes store keys and \ac{PID}s to child nodes.
 
-We template our B-Tree implementation on the key and value type.
-A third boolean template parameter indicates whether we require tracking information to operate a corresponding Delta Tree for this B-Tree instantiation.
+We template our B-tree implementation on the key and value type.
+A third boolean template parameter indicates whether we require tracking information to operate a corresponding Delta Tree for this B-tree instantiation.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=1\textwidth]{figures/leaf_node.pdf}
-  \caption{The data layout of a leaf node in the B-Tree supporting variable-sized keys and values. The header contains metadata about the node, such as the level in the tree, the offset to the data segment and the number of slots. The slots point to the actual entries stored in the data segment. The data segment contains the keys and values. Inner nodes store keys and pointers to child nodes. Adapted from "Database Systems on Modern CPU Architectures" \autocite{mdbs2024slides}.}
+  \caption{The data layout of a leaf node in the B-tree supporting variable-sized keys and values. The header contains metadata about the node, such as the level in the tree, the offset to the data segment and the number of slots. The slots point to the actual entries stored in the data segment. The data segment contains the keys and values. Inner nodes store keys and pointers to child nodes. Adapted from "Database Systems on Modern CPU Architectures" \autocite{mdbs2024slides}.}
   \label{fig:leaf-node}
 \end{figure}
 
-\subsection*{BBB-Tree}
+\subsection*{3B-tree}
 
-A BBB-Tree consists of a B-Tree with tracking information and a corresponding Delta Tree.
+A 3B-tree consists of a B-tree with tracking information and a corresponding Delta Tree.
 
-\subsubsection*{B-Tree with Tracking}
-The B-Tree with tracking is a standard B-Tree as described above, but with the addition of tracking changes made to its nodes.
+\subsubsection*{B-tree with Tracking}
+The B-tree with tracking is a standard B-tree as described above, but with the addition of tracking changes made to its nodes.
 It is templated on the key type \texttt{KeyT} and the value type \texttt{ValueT}, which is always a \ac{TID} in our case.
-As described above, we template the B-Tree on a third boolean template parameter.
-When set to true, we extend the page header and slots with additional fields to track changes made to the node, as shown in \autoref{fig:b-tree-with-tracking}.
+As described above, we template the B-tree on a third boolean template parameter.
+When set to true, we extend the page header and slots with additional fields to track changes made to the node, as shown in \autoref{fig:B-tree-with-tracking}.
 
 \inlinesection{Header.}
 The header is extended by a \texttt{uint16\_t bytes\_changed} field to track the degree of write amplification on the page.
@@ -106,35 +106,35 @@ The state machine of the operation state field is shown in \autoref{fig:slot-sta
 
 Since we only have four states, we can store the state in two bits only.
 Therefore, we can hide the space overhead of the state field by using the upper two bits of the 32 bit offset field in the slot, assuming that we do not need more than 30 bits to address all offsets on the page.
-This is crucial to keep the fanout of the tree as high as possible. Otherwise we would introduce more pages than the baseline B-Tree, negatively impacting performance.
+This is crucial to keep the fanout of the tree as high as possible. Otherwise we would introduce more pages than the baseline B-tree, negatively impacting performance.
 
 \inlinesection{Buffer Manager Integration.}
 Our Delta Tree uses this information to determine which changes to store.
-When a B-Tree with tracking enabled, fixes a page through the buffer manager, it injects a \texttt{PageLogic} object into the page's frame.
+When a B-tree with tracking enabled, fixes a page through the buffer manager, it injects a \texttt{PageLogic} object into the page's frame.
 The buffer manager calls this object later when evicting the node to interact with the Delta Tree to extract deltas and to apply deltas when loading the node from storage again.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=1\textwidth]{figures/b_tree_with_tracking.pdf}
-  \caption{A B-Tree with tracking enabled. The header is extended by a \texttt{bytes\_changed} field to track the degree of write amplification on the page. Each slot is extended by a \texttt{state} field to track whether the corresponding entry is \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated} or \texttt{Deleted}.}
-  \label{fig:b-tree-with-tracking}
+  \caption{A B-tree with tracking enabled. The header is extended by a \texttt{bytes\_changed} field to track the degree of write amplification on the page. Each slot is extended by a \texttt{state} field to track whether the corresponding entry is \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated} or \texttt{Deleted}.}
+  \label{fig:B-tree-with-tracking}
 \end{figure}
 
 \subsubsection*{Delta Tree}
-The Delta Tree is responsible for storing and applying the changes made to the B-Tree nodes.
-It is also a B-Tree but templated on a \ac{PID} as \texttt{KeyT} and a variable-sized \texttt{Delta} array as \texttt{ValueT}.
+The Delta Tree is responsible for storing and applying the changes made to the B-tree nodes.
+It is also a B-tree but templated on a \ac{PID} as \texttt{KeyT} and a variable-sized \texttt{Delta} array as \texttt{ValueT}.
 
-The \texttt{Delta} array stores the changes made to the corresponding page in the B-Tree.
+The \texttt{Delta} array stores the changes made to the corresponding page in the B-tree.
 A \texttt{Delta} array can contain either \texttt{InnerNodeDelta}s or \texttt{LeafDelta}s.
 \texttt{InnerNodeDelta}s represent changes to inner nodes, therefore they store keys and \ac{PID} changes.
 \texttt{LeafDelta}s represent changes to leaf nodes, therefore they store keys and \ac{TID} changes.
 
-Each \texttt{Delta} array stores the \texttt{slot\_count} of the corresponding page in the B-Tree at the time of eviction.
+Each \texttt{Delta} array stores the \texttt{slot\_count} of the corresponding page in the B-tree at the time of eviction.
 For \texttt{InnerNodeDelta}s we additionally store the \texttt{upper} child \ac{PID}.
 We do not need to store the level of the node, as a page never changes its level. 
-Therefore, we can retrieve this information from the B-Tree when extracting or applying deltas.
+Therefore, we can retrieve this information from the B-tree when extracting or applying deltas.
 
-After extracing and storing the \texttt{Deltas} of a B-Tree node in the Delta Tree, we can discard the node's page from the buffer manager without writing it to storage.
+After extracing and storing the \texttt{Deltas} of a B-tree node in the Delta Tree, we can discard the node's page from the buffer manager without writing it to storage.
 When the node is loaded from storage again, we can apply the stored \texttt{Deltas} to reconstruct the state of the node at the time of eviction.
 In \autoref{sec:algorithms} we elaborate how we can reconstruct the state of a node from the information stored in the Delta Tree together with the disk-state of the node.
 
@@ -144,15 +144,15 @@ It owns the buffer manager, the index and the slotted pages.
 It exposes a simple key-value interface to the user, allowing to insert, update, delete and lookup tuples by keys.
 The class is templated on the key type \texttt{KeyT} and the index type \texttt{IndexT}.
 For simplicity, we only support a single table and a single \texttt{uint64\_t} value in our implementation.
-Through the \texttt{IndexT} template parameter, the user can choose between a standard B-Tree or a BBB-Tree as index structure.
+Through the \texttt{IndexT} template parameter, the user can choose between a standard B-tree or a 3B-tree as index structure.
 
 Whenever a user requests an operation, the database class translates it into the corresponding operations on the index and the slotted pages.
 
 \section{Algorithms}
 \label{sec:algorithms}
-In this section we describe the algorithms for the main operations of our BBB-Tree.
-While most operations are similar to a standard B-Tree \cite{mdbs2024slides}, we describe how we extend them to support tracking changes and ensure that we do not loose any changes made to a node.
-We then describe how we use the tracking information in the B-Tree nodes to extract deltas when evicting a node from memory and how we can reconstruct the state of a node when loading it from storage again.
+In this section we describe the algorithms for the main operations of our 3B-tree.
+While most operations are similar to a standard B-tree \cite{mdbs2024slides}, we describe how we extend them to support tracking changes and ensure that we do not loose any changes made to a node.
+We then describe how we use the tracking information in the B-tree nodes to extract deltas when evicting a node from memory and how we can reconstruct the state of a node when loading it from storage again.
 
 % TODO: Check which of these is still correct by the end of this thesis.
 We do not implement concurrency or node merges in our implementation and therefore do not describe them here.
@@ -166,7 +166,7 @@ However, all algorithms were implemented with concurrency in mind and therefore 
 \end{figure}
 
 \subsection*{Lookup}
-A lookup operation is straightforward in a BBB-Tree, we merely perform a standard B-Tree lookup.
+A lookup operation is straightforward in a 3B-tree, we merely perform a standard B-tree lookup.
 We first access the root node and traverse the tree down to the leaf level, following the appropriate child pointers based on the key being looked up.
 We always perform binary search within a node to find the appropriate slot. 
 Once we reach the leaf level, we perform a final binary search to find the key.
@@ -214,7 +214,7 @@ In theory, we could translate all updates into a delete followed by an insert.
 Since the delete operation loads all pages into memory already, the insert operation would not require any additional page loads (unless we require a node split).
 However, if we delete an entry, we need to keep the entry in the node as a tombstone until the page is written back to storage (see Delete~\ref{subsec:delete}).
 This would reduce the space available in the node for new entries, impacting the fanout of the tree.
-However, one of our design goals is to minimize the performance impact on the B-Tree.
+However, one of our design goals is to minimize the performance impact on the B-tree.
 During node splits, for example, we must update the child pointers of the entries in the parent node (see Split~\ref{subsec:split}).
 Therefore, we track updates separately to conserve space in the nodes.
 
@@ -341,7 +341,7 @@ If we require more than 50\% change on the page to perform a write-out, this wou
 In \ref{chap:evaluation} we will see that requiring a degree of change of even less than 50\% is a reasonable threshold to perform a write-out.
 
 \subsection*{Eviction}
-When the buffer manager evicts a B-Tree's node from memory, it evokes the injected Delta Tree.
+When the buffer manager evicts a B-tree's node from memory, it evokes the injected Delta Tree.
 It needs to decide whether to write out the page to storage or not.
 To that end, we calculate the degree of change, by comparing the \texttt{bytes\_changed} field in the header to the size of the node.
 \[degree\_of\_change = bytes\_changed / page\_size\]
@@ -355,18 +355,18 @@ We set all slots to \texttt{Unchanged} state.
 We remove all \texttt{Deleted} slots from the node, as they are now actually deleted from the disk image of the node.
 We set the \texttt{bytes\_changed} field in the header to 0.
 Finally, we erase any corresponding deltas for this page from the Delta Tree, as they are now obsolete.
-We can perform a standard B-Tree deletion.
+We can perform a standard B-tree deletion.
 We indicate to the buffer manager to continue writing the page to storage.
 
 \subsection*{Extracting Deltas}
 If $degree\_of\_change \leq wa\_threshold$, we extract all deltas from the node and store them in the Delta Tree.
 We scan the slot array of the node and for each slot that is not \texttt{Unchanged}, we create a corresponding delta.
 The resulting delta array is then stored in the Delta Tree with the node's \ac{PID} as key.
-This is done with a standard B-Tree insertion.
+This is done with a standard B-tree insertion.
 Finally, we indicate to the buffer manager to discard the page without writing it to storage.
 
 \subsection*{Applying Deltas}
-When the buffer manager loads a B-Tree's node from storage, it invokes the injected Delta Tree to apply any stored deltas to the node.
+When the buffer manager loads a B-tree's node from storage, it invokes the injected Delta Tree to apply any stored deltas to the node.
 We first check whether there are any deltas stored for the node's \ac{PID} in the Delta Tree.
 If not, we are done.
 Otherwise, we apply the deltas to the node.
@@ -390,7 +390,7 @@ We can simply discard the page, without needing to extract and store the deltas 
 \section{Testing}
 All components of our system are covered by unit tests.
 We used the Google Test framework to write and run our tests.
-We tested the buffer manager, the slotted pages, the B-Tree, and the BBB-Tree separately.
+We tested the buffer manager, the slotted pages, the B-tree, and the 3B-tree separately.
 We also wrote integration tests to test the interaction between the components.
 
 % \section{Challenges and Trade-offs}
@@ -404,7 +404,7 @@ We also wrote integration tests to test the interaction between the components.
 
 % Notion of time.
 
-% Scanning Deltas when evicting VS. keeping the DeltaTree up to date during manipulation of the B-Tree.
+% Scanning Deltas when evicting VS. keeping the DeltaTree up to date during manipulation of the B-tree.
 
 % What happens when a new node is created? (see Storyline)
 
