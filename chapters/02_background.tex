@@ -12,8 +12,8 @@ Historically, hard disks were the dominant storage medium.
 Hard disks have a significant imbalance in latency between random and sequential \ac{IO} due to their mechanical nature.
 While \ac{SSD} have a smaller difference between random and sequential \ac{IO}, they still exhibit asymmetric performance, especially in writes \cite{haas2023modern}.
 Therefore, to amortize the cost of random \ac{IO}, database systems and their index structures are designed to access data in pages of multiple kilobytes instead of individual tuples.
+This assumes that subsequent accesses exhibit some locality, which is often the case in practice.
 While we will be referencing disk-based systems throughout this thesis, we speak of systems operating on external storage, which can be either disk-based or flash-based.
-
 
 \section{Database System Architecture Overview}
 
@@ -23,11 +23,14 @@ While we will be referencing disk-based systems throughout this thesis, we speak
 \begin{figure}[htpb]
   \centering
   \includegraphics[width=0.99\textwidth]{figures/db_architecture.pdf}
-  \caption{The storage and access layer of a database system.}
+  \caption{The storage and access layer of a database system. The index provides access to the tuples stored in the slotted pages. Each component requests data from the buffer manager, which handles caching and loading pages from external storage. Adapted from "Database Systems on Modern CPU Architectures" \cite{mdbs2024slides}.}
   \label{fig:db-architecture}
 \end{figure}
 
 In the scope of this thesis we focus on a classic architecture of a single-node, disk-based database system.
+Note that this architecture is not a constraint of our method, which can be applied to any database system using B-trees as an index structure.
+However, for clarity, we describe our method in the context of this architecture.
+
 The access and storage layer of a database system typically consist of a buffer manager, one or more index structures and the slotted pages that store tuples identified by \ac{TID}s, as illustrated in \autoref{fig:db-architecture}.
 Since we operate in a beyond memory setting, the buffer manager is responsible for caching pages in \ac{DRAM} and loading them from external storage when needed.
 Therefore, all components accessing physical data interact with the buffer manager to load and store their pages.
@@ -39,10 +42,10 @@ When a tuple is updated, the corresponding page is loaded into the buffer pool, 
 Should the buffer pool be full, the buffer manager evicts pages based on its replacement policy.
 Clean, unchanged pages can be discarded, while dirty, modified pages must be written back to external storage.
 
-
 \section{Index Structures}
 Index structures are data structures that enable efficient access to data stored in a database.
-Typically, they map a key to a constant, unique \ac{TID}. A \ac{TID} never changes for a tuple.
+Typically, they map a key to a constant, unique \ac{TID}.
+Ideally, the \ac{TID} nevers changes, as this would require all indexes pointing to that tuple to be updated.
 Keys can be arbitrary types and therefore of fixed or variable size, such as integers or strings.
 We will consider both within this thesis.
 When the key of a tuple changes, the index must be updated to reflect the new key.
@@ -51,17 +54,20 @@ Some key-value stores directly map keys to tuples within their index structure, 
 However, in a general purpose \ac{DBMS}, we typically want to support multiple indexes on the same data.
 If we stored tuples directly in the index, we would need to update all indexes when a tuple changes.
 Therefore the access and storage layer are decoupled via \ac{TID}s.
+For the context of this thesis, however, it does not matter whether the index maps keys to \ac{TID}s or directly to tuples.
 
 Indexes can be classified into primary and secondary indexes.
 A primary index is built on the primary key of a table, which uniquely identifies each tuple.
 A secondary index is built on a non-primary key, which can be non-unique.
 
-Having sequential access to a primary key is common, for example when inserting new tuples with an auto-incrementing primary key.
-However, secondary keys are often accessed randomly. For example, consider a user's email address as a secondary key.
-When inserting a new user, the email address is likely to be random and not follow any specific order.
-Therefore, secondary indexes often exhibit random access patterns, which can lead to inefficient access patterns in traditional index structures like a B-tree.
-% TODO: SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
+Consider the following example use-case: a user database with a primary key on the user ID and a secondary index on the email address.
+When inserting several new users, we update the indices.
+The primary index is updated with an auto-incrementing user ID, thus, the primary key follows a sequential access pattern.
+However, the email addresses of new users are likely to be random and not follow any specific order.
+Therefore, if the secondary index is sorted on the keys, as they are in a B-tree, the index exhibits a random access pattern.
+Such access patterns have implications on the performance of index structures, as we will discuss in the following sections.
 
+% TODO: SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
 
 \section{B-trees}
 
@@ -72,7 +78,7 @@ Therefore, secondary indexes often exhibit random access patterns, which can lea
   \label{fig:B-tree}
 \end{figure}
 
-B-trees \cite{bayer1970organization} are a self-balancing tree data structure that maintains sorted data and allows for insertion, deletion, and search operations in logarithmic time, $\mathcal{O}(\log n)$.
+B-trees \cite{bayer1970organization} are a self-balancing tree data structure that maintains sorted data and allows for insertion, deletion, and search operations in logarithmic time, $\mathcal{O}(\log n)$, where $n$ is the number of entries in the tree.
 A B-tree is organized in fixed-size pages, called nodes. These pages are transferred and cached transparently by the buffer manager between external storage and \ac{DRAM}.
 Each node can split off a sibling once it is full. If a node is full and a new key needs to be inserted, the node splits into two nodes, and the middle key is promoted to the parent node.
 Additionally, nodes can merge with a sibling if they become less than half full. For simpliticity, we omit merging of nodes in this thesis.
@@ -144,7 +150,7 @@ However, larger nodes are expected to profit more significantly from our approac
 
 \section{Write Amplification}
 Write amplification is the ratio of the amount of data written to storage versus the amount of logical data written by the user.
-For example, if the database updates an entry of 64 B, but needs to write a full page of 4 KB to storage, the write amplification is 4096 / 64 = 64.
+For example, if the database updates an entry of 64 B, but needs to write a full page of 4 KB to storage, the write amplification is 4096 B / 64 B = 64.
 Write amplification $WA$ is formally defined as:
 
 \[
@@ -159,13 +165,14 @@ When an end user inserts a tuple through a query, the database system must inser
 Consequently, we write significantly more bytes than the user requested logically.
 Additionally, updating a B-tree index might cause structural changes such as node splits or merges that create new nodes, delete new nodes and update the parent nodes.
 Thus, a database system inherently comes with write amplification merely to perform its purpose: manage data.
-This is however not the focus of this thesis; we consider all updates to tables, data structures and the \ac{WAL} as necessary and focus on reducing write amplification within the index layer specifically.
+This is not the focus of this thesis; we consider all updates to tables, data structures and the \ac{WAL} as necessary and focus on reducing write amplification within the index layer specifically.
 
+% TODO: We kinda do measure write amplification on this layer as well as bytes inserted not "B-Tree" as the user.
 \inlinesection{Index Layer.}
 At the index layer, we consider the B-tree as the user of pages.
 When a B-tree entry is updated, the bytes written logically include not only the updated key but also any additional metadata required to maintain the tree structure.
 This can include information about node splits, merges, and the promotion of keys to parent nodes.
-The writes are amplified by the B-tree's page structure that requires rewriting the entire page even if only a small portion changed.
+The writes are amplified by the B-tree's page structure that requires rewriting the entire page even if only a small portion has changed.
 As mentioned in \autoref{sec:node-size-fanout}, the node size directly impacts the write amplification at this level.
 This is the write amplification we focus on in this thesis, by minimizing the number of pages written to storage for a given set of updates (see \autoref{chap:method}).
 
@@ -183,13 +190,15 @@ Unnecessary writes by the database system are multiplied by \ac{SSD}.
 
 % See Bepsilon paper for more analytical model
 
+% TODO: We kina misuse this term in the evaluation chapter, since we do count the reads, not the total IO upon one read.
 \section{Read Amplification}
 Read amplification is the number of \ac{IO} operations required to answer a query \cite{kuszmaul2014fractal}.
 As described above, a B-tree lookup requires a traversal from the root to a leaf node, which is $\mathcal{O}(\log_P(N/P))$ \ac{IO} operations in the \ac{DAM}, assuming that our cache is cold.
 In practice, the buffer manager caches pages in \ac{DRAM}, which can significantly reduce the number of \ac{IO} operations.
 To answer range queries, we can scan the leaf nodes in order, which is efficient in B+-Trees.
 Therefore, we only traverse the tree once to find the start of the range and then scan the leaf nodes sequentially.
-Read amplification is not the focus of this thesis, but it will help understanding the tradeoffs of alternative data structures in \autoref{chap:related-work}.
+Read amplification is a common tradeoff when reducing write amplification, as we will see in alternative data structures (see \autoref{chap:related-work}).
+We will analyze the introduced read amplification of our method compared to the traditional B-tree in our evaluation (see \autoref{chap:evaluation}).
 
 \section{Space Amplification}
 Space amplification is the ratio of the amount of space used by the data structure versus the amount of logical data stored \cite{kuszmaul2014fractal}.
@@ -197,3 +206,4 @@ Most nodes in a B-tree are leaf nodes, which store the actual data.
 However, inner nodes only store keys and child pointers to guide the search, inflating the space usage.
 Additionally, B-tree nodes are not always completely filled.
 Therefore, B-trees exhibit some space amplification.
+Space amplification is not the focus of the thesis, however we will analyze space utilization of our method compared to the traditional B-tree in our evaluation (see \autoref{chap:evaluation}).

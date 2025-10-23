@@ -104,7 +104,7 @@ Essentially, we minimize \ac{IO} operations to those strictly necessary.
 
 The novelty of our approach lies in its non-intrusive design: 
 We only perform additional operations when the buffer manager exchanges B-tree nodes between memory and external storage.
-In contrast to other approaches (see \autoref{chap:related-work}), we neither alter the B-tree structure nor its fundamental operations nor impact concurrency in the tree.
+In contrast to other approaches (see \autoref{chap:related-work}), we neither alter the B-tree structure its fundamental operations, nor impact concurrency in the tree.
 We keep read amplification low by only introducing additional lookups during page reads.
 Our approach is easy to integrate into existing systems and preserves the desirable properties of traditional B-trees.
 

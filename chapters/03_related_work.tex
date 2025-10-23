@@ -12,7 +12,7 @@ They are increasingly used in key-value stores such as RocksDB at Meta \cite{roc
 \ac{LSMT} consist of two main components: an in-memory component and a disk-based component.
 The in-memory component is typically implemented as a balanced tree such as a red-black tree, called a MemTable.
 The MemTable accepts and applies updates in memory.
-Once it is full, it is flushed to disk as a sorted, immutable runs in files called SSTables.
+Once it is full, it is flushed to disk as a sorted, immutable run in a file called SSTable.
 Over time, multiple runs accumulate on disk.
 Since those runs may have overlapping key ranges, lookups need to check both memory and multiple disk files to find a key.
 
@@ -34,6 +34,11 @@ The excellent write performance of an \ac{LSMT} makes this data structure suitab
 % This makes \ac{LSMT} a good fit for a cloud data management scenario.
 %  Add how B-trees would make a better fit for remote storage with out method.
 
+\inlinesection{Write Amplification.}
+LSM-trees exhibit write amplification because data is written multiple times as it moves through the tree's storage hierarchy \cite{kuszmaul2014fractal}.
+Each write is first stored in memory, then flushed to disk as an SSTable, and repeatedly rewritten during compactions that merge overlapping files across levels. 
+These repeated rewrites cause the total bytes written to disk to exceed the amount of user data written, resulting in write amplification.
+
 \inlinesection{Low Read Performance.}
 Essentially, \ac{LSMT} trade high write performance at the cost of low read performance.
 This is useful for specific scenarios where writes dominate reads.
@@ -44,7 +49,7 @@ In use-cases, where we only lookup hot keys that are likely to be in memory, \ac
 However, such temporal locality is an assumption that we cannot make in a general-purpose system that needs to balance performance for all use-cases.
 When looking up cold keys that are not in memory, \ac{LSMT} need to check multiple files on disk, leading to high read amplification.
 
-To improve lookup performance, each SSTable has an in-memory Bloom filter to check if a key is present in the file before performing a search.
+To improve lookup performance, each SSTable has an in-memory Bloom filter to check if a key is present in the file before performing a search \cite{chang2008bigtable}.
 However, Bloom filters come with other problems. 
 For one, it can yield false positives.
 Secondly, the larger the data set they are addressing, the larger the Bloom filter needs to be, inflating the memory footprint of \ac{LSMT}.
@@ -150,7 +155,7 @@ In our approach, we aim to introduce a small overhead when loading a page from e
 Additionally, we want to keep the changes to the B-tree minimal, introducing a lightweight layer between the data structure and the storage manager that buffers and batches updates.   
 
 \section{Write-Optimized B-trees}
-In his paper "Write-Optimized B-trees" \cite{graefe2004write}, Goetz Graefe addresses the write efficiency gap between log-structured file systems and the B-tree.
+Graefe proposes "Write-Optimized B-trees" \cite{graefe2004write} to address the write efficiency gap between log-structured file systems and the B-tree.
 Log-structured data structures write large, sequential chunks of data to disk, making optimal use of the available bandwidth.
 B-trees, on the other hand, perform many small, random writes by writing individual pages.
 To improve write efficiency in B-trees, Graefe proposes to batch multiple dirty nodes and write them to disk in a single, large write operation.
@@ -167,13 +172,14 @@ We avoid writing individual pages as a whole, by deferring updates and buffering
 % TODO: "Modern B-tree Techniques", "More Modern B-tree Techniques" (Deferred Updates), Goetz Graefe
 % TODO: "B-tree indexes for high update rates", Goetz Graefe, 
 \section{Transparent Compression}
-Some modern storage devices offer hardware-based lossless data compression transparent to the host.
+Qiao et al. \cite{qiao2022compression} propose a hardware-based approach to reduce write amplification in B-trees.
+They use transparent compression, a hardware feature of some modern storage devices that offer lossless data compression transparent to the host.
 The storage device compresses data before writing it to the physical medium.
 When a page is empty, no data is written at all.
 When a page is partially filled, only the actual data is written, not the empty space.
 This can be used to reduce write amplification in B-trees, as it allows for sparse data structures which do not actually waste space on the storage device.
 
-In the paper \cite{qiao2022compression}, apply out-of-place updates like previous approaches.
+Qiao et al. apply out-of-place updates like previous approaches.
 Each node's page is followed by a modification log that records changes to the node.
 In contrast to previous approaches of out-of-place updates, they do not need to collect updates to a node across storage but instead, they can perform a single read operation to load the node and its modification log.
 When loading the node from storage, they apply the modifications in the log to reconstruct the current state of the node.
@@ -189,7 +195,6 @@ A benefit of this approach is that it does not require invasive changes to the B
 In memory, the B-tree remains the same and only the storage manager needs to be aware of the modification log.
 This only requires overhead at the point of loading and unloading a page to and from external storage.
 A similar approach is taken in this thesis.
-
 However, this approach relies on hardware-based compression which is not widely available.
 We aim to provide a software-based solution that can be used on any storage device.
 
