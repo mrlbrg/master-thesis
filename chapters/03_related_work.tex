@@ -169,8 +169,32 @@ It supports the effort of improving write performance in B-trees, while retainin
 While this approach improves write performance by batching multiple pages, in this thesis we address the write amplification caused by individual page and in-place updates.
 We avoid writing individual pages as a whole, by deferring updates and buffering them in batches instead.
 
+\section{Decoupling Storage from In-Memory Data Structures}
+Sauer et al. \cite{sauer2018fineline} propose FineLine, a storage manager that decouples in-memory data structures from persistence concerns in a database system.
+In-memory data structures are never propagated to disk.
+Instead, FineLine merely uses the log for persistence.
+When an in-memory data structure (for example a B-tree) causes a cache miss, FineLine reconstructs its state by replaying the log of operations from disk.
+When a transaction commits, its log of changes to the data structures is flushed to disk in a sequential manner, allowing for high write performance.
+To improve read performance for reconstruction, FineLine employs a compaction mechanism that merges partitions of the log, similar to \ac{LSMT}.
+
+Since all flushes to disk are sequential, write amplification is small.
+Some write amplification is introduced by the compaction process.
+Also, traditional systems need to write both, the data structure pages and the \ac{WAL} to disk.
+In FineLine, the log is the only component that requires persistence.
+This reduces random writes in the system further.
+
+FineLine also allows for a graceful recovery mechanism, as the log can be replayed when the in-memory state is lost (e.g., after a crash) in a similar way that a cache miss is handled.
+
+One drawback of this approach is the high read amplification when reconstructing data structures from the log.
+Every time a node is reconstructed, the log needs to be scanned for all entries that affect the node.
+Due to compaction, this search can be efficient.
+However, assume a high update rate on a certain data structure node.
+Many partitions of the log may contain updates for this node, requiring multiple reads from disk to reconstruct the node.
+
 % TODO: "Modern B-tree Techniques", "More Modern B-tree Techniques" (Deferred Updates), Goetz Graefe
-% TODO: "B-tree indexes for high update rates", Goetz Graefe, 
+% TODO: "B-tree indexes for high update rates", Goetz Graefe
+% TODO: "B2-Tree: Cache-Friendly String Indexing within B-Trees." 
+
 \section{Transparent Compression}
 Qiao et al. \cite{qiao2022compression} propose a hardware-based approach to reduce write amplification in B-trees.
 They use transparent compression, a hardware feature of some modern storage devices that offer lossless data compression transparent to the host.
@@ -179,7 +203,7 @@ When a page is empty, no data is written at all.
 When a page is partially filled, only the actual data is written, not the empty space.
 This can be used to reduce write amplification in B-trees, as it allows for sparse data structures which do not actually waste space on the storage device.
 
-Qiao et al. apply out-of-place updates like previous approaches.
+In their approach, Qiao et al. apply out-of-place updates like previous approaches.
 Each node's page is followed by a modification log that records changes to the node.
 In contrast to previous approaches of out-of-place updates, they do not need to collect updates to a node across storage but instead, they can perform a single read operation to load the node and its modification log.
 When loading the node from storage, they apply the modifications in the log to reconstruct the current state of the node.
