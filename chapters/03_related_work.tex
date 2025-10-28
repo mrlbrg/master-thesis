@@ -3,8 +3,15 @@
 In this chapter, we review related work on write-optimized data structures, focusing on B-tree variants and alternatives and compression techniques to reduce write amplification.
 For each data structure, we discuss its design, how it addresses write amplification, and its trade-offs in terms of read performance, concurrency and applicability.
 We outline the gap in existing work that we aim to address in this thesis.
+In \autoref{sec:related-work-lsmt}, we discuss \ac{LSMT}, a popular write-optimized data structure alternative to B-trees.
+In \autoref{sec:related-work-bepsilontrees}, we review B$^\epsilon$-trees, a write-optimized B-tree variant.
+In \autoref{sec:related-work-bwtrees}, we discuss the Bw-tree, another B-tree variant optimized for modern hardware.
+In \autoref{sec:related-work-wo-btrees}, we review Graefe's Write-Optimized B-trees, an approach to improve write performance in B-trees by batching page writes.
+In \autoref{sec:related-work-fineline}, we discuss FineLine, a storage manager that decouples in-memory data structures from their disk representation.
+Finally, in \autoref{sec:related-work-compression}, we review a hardware-based approach to reduce write amplification in B-trees using transparent compression.
 
 \section{Log-Structured-Merge-Trees}
+\label{sec:related-work-lsmt}
 \ac{LSMT} \cite{oneil1996log} are a popular alternative index data structure to B-trees for write-heavy workloads.
 They are increasingly used in key-value stores such as RocksDB at Meta \cite{rocksdb} or BigTable at Google \cite{chang2008bigtable}.
 
@@ -66,9 +73,10 @@ For such a system, B-trees are the superior data structure.
 We therefore investigate how to improve B-trees to close the gap in write performance to \ac{LSMT} while retaining their superior read performance.
 
 
-\section{B$^\epsilon$-Trees}
+\section{B$^\epsilon$-trees}
+\label{sec:related-work-bepsilontrees}
 \textbf{Basic Structure.}
-B$^\epsilon$-Trees \cite{bender2015epsilon} are a write-optimized variant of B-trees.
+B$^\epsilon$-trees \cite{bender2015epsilon} are a write-optimized variant of B-trees.
 Each internal node has a buffer to temporarily encode incoming updates as messages.
 When a buffer is full, messages are flushed to the appropriate child node.
 When messages reach a leaf node, they are applied to the respective leaf.
@@ -80,7 +88,7 @@ Given a page size $B$, it determines how much of its space is used for storing p
 Choosing a larger $\epsilon$ increases the space for keys and pointers, improving read performance similar to a B-tree, while a smaller $\epsilon$ increases the buffer size, enhancing write performance similar to a buffered repository tree \cite{buchsbaum2000external}.
 
 \inlinesection{Mitigation of Write Amplification.}
-This design allows B$^\epsilon$-Trees to batch updates, reducing the number of \ac{IO} operations and improving write performance while maintaining comparable read performance to B-trees.
+This design allows B$^\epsilon$-trees to batch updates, reducing the number of \ac{IO} operations and improving write performance while maintaining comparable read performance to B-trees.
 A benefit of using a top-down approach to propagate updates is that it primarily writes to higher levels of the tree which are more frequently accessed and thus more likely to be cached in memory.
 Alongside with a good eviction strategy, this can effectively reduce number of write operations to external storage.
 Another effect of this design it that is allows for large node sizes.
@@ -88,7 +96,7 @@ For one, we need larger node sizes to accommodate the buffers and maintain a hig
 But more importantly, batching updates mitigates write amplification.
 At the time of reaching a leaf node to apply updates, many updates have accumulated and can be applied at once. 
 A leaf node will not be rewritten for individual updates. 
-Therefore, the larger node sizes are less problematic in B$^\epsilon$-Trees, since they do not incur as much write amplification as in B-trees.
+Therefore, the larger node sizes are less problematic in B$^\epsilon$-trees, since they do not incur as much write amplification as in B-trees.
 
 \inlinesection{Read Overhead.}
 Messages are usually binary search trees like a red-black tree to allow efficient searching within the buffer.
@@ -97,7 +105,7 @@ This ensures that the most recent updates are considered during the search.
 However, this also means that two searches are required per node: one for the pointer to the child node and one for messages in the buffer.
 This introduces some overhead for read operations compared to B-trees.
 
-On the other hand, B$^\epsilon$-Trees can achieve faster scans, because larger node sizes are more attractive in this design, better utilizing the bandwidth of external storage.
+On the other hand, B$^\epsilon$-trees can achieve faster scans, because larger node sizes are more attractive in this design, better utilizing the bandwidth of external storage.
 
 \inlinesection{Concurrency Limitation.}
 Since updates are propagated top-down, we introduce contention on higher levels of the tree.
@@ -106,14 +114,15 @@ When they are written to, this blocks a large amount of nodes below.
 This is especially problematic for the root node, which needs to be accessed by every operation in the tree, limiting concurrency in the system significantly.
 
 \inlinesection{Summary.}
-While B$^\epsilon$-Trees have been shown to effectively mitigate write amplification in a single-threaded scenario, they significantly limit concurrency in the data structure.
-A characteristic that makes B$^\epsilon$-Trees unsuitable for high-performance database systems.
+While B$^\epsilon$-trees have been shown to effectively mitigate write amplification in a single-threaded scenario, they significantly limit concurrency in the data structure.
+A characteristic that makes B$^\epsilon$-trees unsuitable for high-performance database systems.
 In this thesis, we aim to reduce write amplification in B-trees while retaining high concurrency.
 
 
-\section{Bw-Trees}
+\section{Bw-trees}
+\label{sec:related-work-bwtrees}
 \inlinesection{Basic Structure.}
-The Bw-Tree \cite{levandoski2013bw} is a B-tree variant optimized for modern hardware.
+The Bw-tree \cite{levandoski2013bw} is a B-tree variant optimized for modern hardware.
 It introduces a latch-free design, leveraging atomic compare-and-swap operations to ensure consistency without traditional locking mechanisms.
 They employ out-of-place updates, where deltas are prepended to nodes as linked lists instead of modifying them in place.
 This avoids cache invalidation, enabling higher concurrency in the tree.
@@ -149,12 +158,13 @@ However, pointer swizzling is a common technique for disk-based database systems
 Therefore, we want to keep each layer transparent to the other, allowing independent optimizations.
 
 \inlinesection{Summary.}
-Overall, the Bw-Tree presents a novel approach to reduce write amplification in B-trees and we take notes for our own design.
-However, Wang et al. showed in their paper "Building a Bw-Tree Takes More Than Just Buzz Words" \cite{wang2018bwtree} that the Bw-Tree's performance is actually not competitive with traditional B-trees using optimistic lock coupling \cite{leis2019optimistic}.
+Overall, the Bw-tree presents a novel approach to reduce write amplification in B-trees and we take notes for our own design.
+However, Wang et al. showed in their paper "Building a Bw-tree Takes More Than Just Buzz Words" \cite{wang2018bwtree} that the Bw-tree's performance is actually not competitive with traditional B-trees using optimistic lock coupling \cite{leis2019optimistic}.
 In our approach, we aim to introduce a small overhead when loading a page from external storage, not for every read operation in memory.
 Additionally, we want to keep the changes to the B-tree minimal, introducing a lightweight layer between the data structure and the storage manager that buffers and batches updates.   
 
 \section{Write-Optimized B-trees}
+\label{sec:related-work-wo-btrees}
 Graefe proposes "Write-Optimized B-trees" \cite{graefe2004write} to address the write efficiency gap between log-structured file systems and the B-tree.
 Log-structured data structures write large, sequential chunks of data to disk, making optimal use of the available bandwidth.
 B-trees, on the other hand, perform many small, random writes by writing individual pages.
@@ -170,6 +180,7 @@ While this approach improves write performance by batching multiple pages, in th
 We avoid writing individual pages as a whole, by deferring updates and buffering them in batches instead.
 
 \section{Decoupling Storage from In-Memory Data Structures}
+\label{sec:related-work-fineline}
 Sauer et al. \cite{sauer2018fineline} propose FineLine, a storage manager that decouples in-memory data structures from persistence concerns in a database system.
 In-memory data structures are never propagated to disk.
 Instead, FineLine merely uses the log for persistence.
@@ -191,11 +202,10 @@ Due to compaction, this search can be efficient.
 However, assume a high update rate on a certain data structure node.
 Many partitions of the log may contain updates for this node, requiring multiple reads from disk to reconstruct the node.
 
-% TODO: "Modern B-tree Techniques", "More Modern B-tree Techniques" (Deferred Updates), Goetz Graefe
-% TODO: "B-tree indexes for high update rates", Goetz Graefe
-% TODO: "B2-Tree: Cache-Friendly String Indexing within B-Trees." 
+% TODO: "Two is Better Than One: The Case for 2-Tree for Skewed Data Sets" https://www.cidrdb.org/cidr2023/papers/p57-zhou.pdf
 
 \section{Transparent Compression}
+\label{sec:related-work-compression}
 Qiao et al. \cite{qiao2022compression} propose a hardware-based approach to reduce write amplification in B-trees.
 They use transparent compression, a hardware feature of some modern storage devices that offer lossless data compression transparent to the host.
 The storage device compresses data before writing it to the physical medium.
@@ -223,7 +233,7 @@ However, this approach relies on hardware-based compression which is not widely 
 We aim to provide a software-based solution that can be used on any storage device.
 
 % \section{Partitioned B-trees}
-% \section{Blink-Trees} not relevant, just a concurrency mechanism
+% \section{Blink-trees} not relevant, just a concurrency mechanism
 % \section{Fractal Trees} same as BepsilonTrees
 % \section{Buffer Trees} covered by BepsilonTrees
 % \section{In-Memory Data Structures} not relevant as we scop disk-based systems, see https://www.cs.cit.tum.de/fileadmin/w00cfj/dis/papers/btrees-are-back.pdf

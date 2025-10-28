@@ -74,7 +74,7 @@ Such access patterns have implications on the performance of index structures, a
 \begin{figure}[htpb]
   \centering
   \includegraphics[width=0.99\textwidth]{figures/b_tree.pdf}
-  \caption{A B+-Tree. Child pointers are represented as arrows. Values (the \ac{TID}) are represented as bullet points •.}
+  \caption{A B+-tree. Child pointers are represented as arrows. Values (the \ac{TID}) are represented as bullet points •.}
   \label{fig:B-tree}
 \end{figure}
 
@@ -98,13 +98,13 @@ When searching for a key in the tree, we start at the root node.
 On each node, we perform a binary search to find the appropriate pivot key and follow the corresponding child pointer.
 We stop when we reach a node with the desired key.
 
-\subsection*{B+-Trees}
-When addressing B-trees in this thesis, we actually refer to B+-Trees, a variant of B-trees where all values are stored in the leaf nodes and internal nodes only store keys and child pointers to guide the search.
-The separator keys in internal nodes may or may not occur in the data. An example B+-Tree is illustrated in \autoref{fig:B-tree}.
+\subsection*{B+-trees}
+When addressing B-trees in this thesis, we actually refer to B+-trees, a variant of B-trees where all values are stored in the leaf nodes and internal nodes only store keys and child pointers to guide the search.
+The separator keys in internal nodes may or may not occur in the data. An example B+-tree is illustrated in \autoref{fig:B-tree}.
 The lookup procedure is the same as in a B-tree, however we always traverse the full tree from root to leaf to find a key.
 Not only does this simplify the B-tree logic, it also increases the fanout of inner nodes, leading to a lower tree height and therefore fewer \ac{IO} operations for lookups since less pages are involved in reaching the leaf level.
 Also, it allows for efficient range queries by scanning the leaf nodes in order.
-Due to its excellent lookup performance, support for range queries, and simplicity, B+-Trees are the dominant data structure for external storage \cite{mdbs2024slides}.
+Due to its excellent lookup performance, support for range queries, and simplicity, B+-trees are the dominant data structure for external storage \cite{mdbs2024slides}.
 
 % TODO: Cut this subsection?
 \subsection*{Disk-Access-Model}
@@ -167,7 +167,7 @@ Additionally, updating a B-tree index might cause structural changes such as nod
 Thus, a database system inherently comes with write amplification merely to perform its purpose: manage data.
 This is not the focus of this thesis; we consider all updates to tables, data structures and the \ac{WAL} as necessary and focus on reducing write amplification within the index layer specifically.
 
-% TODO: We kinda do measure write amplification on this layer as well as bytes inserted not "B-Tree" as the user.
+% TODO: We kinda do measure write amplification on this layer as well as bytes inserted not "B-tree" as the user.
 \inlinesection{Index Layer.}
 At the index layer, we consider the B-tree as the user of pages.
 When a B-tree entry is updated, the bytes written logically include not only the updated key but also any additional metadata required to maintain the tree structure.
@@ -195,7 +195,7 @@ Unnecessary writes by the database system are multiplied by \ac{SSD}.
 Read amplification is the number of \ac{IO} operations required to answer a query \cite{kuszmaul2014fractal}.
 As described above, a B-tree lookup requires a traversal from the root to a leaf node, which is $\mathcal{O}(\log_P(N/P))$ \ac{IO} operations in the \ac{DAM}, assuming that our cache is cold.
 In practice, the buffer manager caches pages in \ac{DRAM}, which can significantly reduce the number of \ac{IO} operations.
-To answer range queries, we can scan the leaf nodes in order, which is efficient in B+-Trees.
+To answer range queries, we can scan the leaf nodes in order, which is efficient in B+-trees.
 Therefore, we only traverse the tree once to find the start of the range and then scan the leaf nodes sequentially.
 Read amplification is a common tradeoff when reducing write amplification, as we will see in alternative data structures (see \autoref{chap:related-work}).
 We will analyze the introduced read amplification of our method compared to the traditional B-tree in our evaluation (see \autoref{chap:evaluation}).

@@ -64,7 +64,7 @@ While B-trees are the backbone of indexing in modern storage engines, their in-p
 
 \ac{LSMT} address write costs by always writing sequentially, but they introduce high read amplification and complex tuning requirements, making them unsuitable for general-purpose database systems.
 
-B$\epsilon$-Trees buffer and batch updates starting from the root and propagating them down the tree to reduce write amplification. 
+B$\epsilon$-trees buffer and batch updates starting from the root and propagating them down the tree to reduce write amplification. 
 Firstly, this introduces two searches per node, one for the next pivot and one for a buffered update for the looked-up key.
 Secondly, the reduced space for pivots in each node reduces the fanout of the tree, leading to taller trees and more \ac{IO} operations per lookup.
 Most importantly, though, it significantly limits concurrency in the data structure, as the hottest nodes are locked for more extended periods of time to write the update messages, reducing throughput in the tree.
