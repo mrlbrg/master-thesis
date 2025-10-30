@@ -73,10 +73,8 @@ We augment the dataset in the following way:
     \item We filter out all non-English articles, i.e., we only keep articles with the domain code \texttt{en}.
     \item For benchmarks with integer keys, we turn the page title into an integer key. For benchmarks with variable-sized keys, we use the original page title as key.
     \item We create a lookup operation for each view of an article, i.e., if an article has 100 views, we create 100 lookups for that article.
-    % TODO: update the actual percentage we used.
     \item To generate a mixed workload, we turn a certain percentage of the lookups into updates. This assumes that an article with more views is more likely to be updated.
     \item We then shuffle the operations to create a mixed workload.
-    % TODO: update the percentage of the sample we used.
     \item To create a smaller dataset, we take a random fraction of the articles as samples.
 \end{enumerate}
 
@@ -414,8 +412,6 @@ In this scenario, we do not lose any fanout due to the additional overhead.
 However, in other scenarios we might lose one entry per node due to the additional overhead.
 With a 4 KB page and 170 entries per node, loosing one entry means a loss of \textasciitilde0.6\% in fanout.
 
-% TODO: Maybe also add a section of the space overhead of saving deltas and its data layout.
-
 \subsection{In-Memory Overhead}
 To analyze the memory overhead of tracking changes on the pages in memory, we run the mixed Wikipedia Pageviews workload purely in memory, once on a B-tree with tracking enabled and once on a B-tree without tracking.
 The B-tree without tracking does not have a Delta Tree attached, so we can see the pure overhead of tracking changes in the B-tree nodes.
@@ -537,8 +533,6 @@ However, some SSDs can be faster in writing than reading.
 We can extend this condition to account for different costs of read and write operations.
 Let $c_r$ and $c_w$ denote the cost per read and per write, respectively.  
 
-% TODO: Maybe cite: https://www.reddit.com/r/mac/comments/1gvovdt/the_ultimate_guide_to_mac_ssd_speeds/#lightbox
-
 \begin{equation}
 \frac{reads}{writes} < \frac{c_w}{c_r} \cdot
 \frac{write\_reduction}{read\_amplification}
@@ -584,7 +578,6 @@ To keep read amplification low, we need to be able to cache the Delta Tree effec
 % We are not good in a scenario with very limited memory, as we constantly swap pages in and out of the buffer pool to perform operations on both trees.
 % With more memory, we can cache the Delta Tree pages better, reducing read amplification.
 % With too much memory, we amplify the reads too much because the B-tree pages are mostly in memory already, where the Delta Tree hurts more.
-% TODO: Show this in a figure.
 
 \subsection*{Variable-Sized Entries}
 To analyze the effect of variable-sized entries, we run the same Wikipedia Pageviews workload, but this time with the variable-sized \texttt{page\_title} as key.

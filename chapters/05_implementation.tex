@@ -1,14 +1,7 @@
 \chapter{Implementation}
 \label{chap:implementation}
 
-% TODO: Mention that we don't implement concurrency or node merges.
-% TODO: Mention that we don't actually implement deletes and updates.
-
-% \section{Environment and Tools Used}
-
 \section{System Architecture}
-% TODO: Figure from System Architecture
-
 We have implemented our system according to \autoref{fig:db-architecture} in C++. 
 In the following, we inspect the particular implementation of each component.
 
@@ -165,9 +158,8 @@ In this section we describe the algorithms for the main operations of our 3B-tre
 While most operations are similar to a standard B-tree \cite{mdbs2024slides}, we describe how we extend them to support tracking changes and ensure that we do not loose any changes made to a node.
 We then describe how we use the tracking information in the B-tree nodes to extract deltas when evicting a node from memory and how we can reconstruct the state of a node when loading it from storage again.
 
-% TODO: Check which of these is still correct by the end of this thesis.
 We do not implement concurrency or node merges in our implementation and therefore do not describe them here.
-However, all algorithms were implemented with concurrency in mind and therefore can be extended to support it by introducing latches when fixing nodes.
+However, all algorithms were implemented with concurrency in mind and therefore can be extended to support it.
 
 \begin{figure}[htbp]
   \centering
@@ -369,8 +361,7 @@ However, compactification is an expensive operation and reclaiming space is impo
 We would like to maintain the space gains from compactification also after discarding the page and loading it again from memory.
 Therefore it makes sense to always write out a page after a node split, as a node split usually carries enough information through its structural changes to justify the write.
 If we require more than 50\% change on the page to perform a write-out, this would be a given, since we change half of the node during node splits.
-% TODO: Check if this is still correct by the end of the thesis:
-In \autoref{chap:evaluation} we will see that requiring a degree of change of even less than 50\% is a reasonable threshold to perform a write-out.
+In \autoref{chap:evaluation} we will see that requiring a degree of change of less than 50\% is a reasonable threshold to perform a write-out.
 
 \subsection*{Eviction}
 When the buffer manager evicts a B-tree's node from memory, it evokes the injected Delta Tree.

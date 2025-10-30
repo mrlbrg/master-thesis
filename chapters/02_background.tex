@@ -67,8 +67,6 @@ However, the email addresses of new users are likely to be random and not follow
 Therefore, if the secondary index is sorted on the keys, as they are in a B-tree, the index exhibits a random access pattern.
 Such access patterns have implications on the performance of index structures, as we will discuss in the following sections.
 
-% TODO: SSD Wear Leveling? Garbage Collection? Wearout? https://www.vldb.org/pvldb/vol18/p4295-haas.pdf
-
 \section{B-trees}
 
 \begin{figure}[htpb]
@@ -123,8 +121,6 @@ In practice, B-trees are often used to index variable-sized keys and values.
 Therefore, we will consider variable-sized records in our method and implementation.
 However, the \ac{DAM} provides an approximation.
 
-% TODO: Slotted Node Layout here or in Implementation?
-
 \subsection*{Node Size \& Fanout}
 \label{sec:node-size-fanout}
 The node size (i.e. the page size) is a crucial parameter in the design of a B-tree, as it affects the height of the tree.
@@ -143,10 +139,8 @@ With random access patterns, however, this \ac{IO} amplification due to large pa
 % Modern \ac{SSD} were shown to perform best at page sizes of 4 KB \cite{haas2023modern}.
 
 % TODO: Make sure this is still correct by the end of the thesis:
-While we will be evaluating performance under different node sizes, this tuning parameter is not the primary focus of this thesis.
-Instead, we focus on reducing \ac{IO} amplification in B-trees at any page size.
-However, larger nodes are expected to profit more significantly from our approach, as they induce more \ac{IO} amplification in B-trees.
-
+Node sizes are a tuning parameter that is not the primary focus of this thesis.
+Instead, we focus on reducing \ac{IO} amplification in B-trees at any node size.
 
 \section{Write Amplification}
 Write amplification is the ratio of the amount of data written to storage versus the amount of logical data written by the user.

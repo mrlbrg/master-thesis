@@ -29,8 +29,6 @@ As a result, higher levels contain more recent data with several, smaller files 
 Since runs are immutable, each compaction generates new files for the merged runs.
 Outdated files are deleted by a garbage collector \cite{sarkar2022lsmt}.
 
-% TODO: Figure of LSMT maybe
-
 \inlinesection{High Write Performance.}
 B-trees maintain a fully sorted view of the data and update this view in-place.
 In contrast, \ac{LSMT} update out-of-place in a sequential, log-structured manner by buffering updates in memory and flushing them to external storage in large, sorted batches, enabling high write throughput.
