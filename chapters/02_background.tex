@@ -186,6 +186,7 @@ Unnecessary writes by the database system are multiplied by \ac{SSD}.
 
 % TODO: We kina misuse this term in the evaluation chapter, since we do count the reads, not the total IO upon one read.
 \section{Read Amplification}
+\label{sec:read-amplification-background}
 Read amplification is the number of \ac{IO} operations required to answer a query \cite{kuszmaul2014fractal}.
 As described above, a B-tree lookup requires a traversal from the root to a leaf node, which is $\mathcal{O}(\log_P(N/P))$ \ac{IO} operations in the \ac{DAM}, assuming that our cache is cold.
 In practice, the buffer manager caches pages in \ac{DRAM}, which can significantly reduce the number of \ac{IO} operations.
