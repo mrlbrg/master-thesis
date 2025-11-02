@@ -17,9 +17,6 @@ While we will be referencing disk-based systems throughout this thesis, we speak
 
 \section{Database System Architecture Overview}
 
-% TODO: Mention that we don't consider writes to the log which should be the same in all systems.
-% TODO: Work in equations and read/space ampl. from "A Comparison of Fractal Trees to Log-Structured Merge (LSM) Trees" https://www.cs.cmu.edu/~dga/papers/sigmod10-fractal.pdf
-
 \begin{figure}[htpb]
   \centering
   \includegraphics[width=0.99\textwidth]{figures/db_architecture.pdf}
@@ -104,20 +101,19 @@ Not only does this simplify the B-tree logic, it also increases the fanout of in
 Also, it allows for efficient range queries by scanning the leaf nodes in order.
 Due to its excellent lookup performance, support for range queries, and simplicity, B+-trees are the dominant data structure for external storage \cite{mdbs2024slides}.
 
-% TODO: Cut this subsection?
 \subsection*{Disk-Access-Model}
-To analyze the performance of B-trees in a beyond memory setting, we use the \ac{DAM} \cite{aggarwal1988complexity} \cite{kuszmaul2014fractal}.
+To understand the disk access patterns of B-trees, we analyze the amount of \ac{IO} operations using the \ac{DAM} \cite{aggarwal1988complexity} \cite{kuszmaul2014fractal}.
 The model has two levels of memory: an internal memory of size $M$ and external storage of infinite size.
 The storage device is organized in fixed-size pages, which are the units of data transfer between memory and storage and determine the size of nodes in a B-tree.
 For simplicity of this analysis of the \ac{DAM} for B-trees, we assume that records are constant sized (An assumption that simplifies this explanation but does not hold in practice. 
-Therefore we will \textbf{not} assume this in our method and implementation.) and that nodes are always completely filled.
+Therefore, we do \textbf{not} assume this in our method and implementation) and that nodes are always completely filled.
 When a database has $N$ records, and the storage device has pages of size $P$, the B-tree has a height of $\log_P(N/P)$, where inner nodes contain $O(P)$ children and leaf nodes contain $O(P)$ records.
 
 Each lookup/insertion/deletion requires a traversal from the root to a leaf node, leading to $\mathcal{O}(\log_P(N/P))$ \ac{IO} operations.
 Since the majority of nodes in the tree are leaf nodes, we can assume that most inner nodes can be cached by the buffer manager.
 In that case, we would require only a single \ac{IO} per B-tree operation.
 
-In practice, B-trees are often used to index variable-sized keys and values.
+In practice, B-trees are often used to index variable-sized keys and values as well.
 Therefore, we will consider variable-sized records in our method and implementation.
 However, the \ac{DAM} provides an approximation.
 
@@ -138,7 +134,6 @@ Ideally, no or very few additional \ac{IO} operations are necessary.
 With random access patterns, however, this \ac{IO} amplification due to large page sizes becomes a problem.
 % Modern \ac{SSD} were shown to perform best at page sizes of 4 KB \cite{haas2023modern}.
 
-% TODO: Make sure this is still correct by the end of the thesis:
 Node sizes are a tuning parameter that is not the primary focus of this thesis.
 Instead, we focus on reducing \ac{IO} amplification in B-trees at any node size.
 
@@ -161,14 +156,14 @@ Additionally, updating a B-tree index might cause structural changes such as nod
 Thus, a database system inherently comes with write amplification merely to perform its purpose: manage data.
 This is not the focus of this thesis; we consider all updates to tables, data structures and the \ac{WAL} as necessary and focus on reducing write amplification within the index layer specifically.
 
-% TODO: We kinda do measure write amplification on this layer as well as bytes inserted not "B-tree" as the user.
 \inlinesection{Index Layer.}
 At the index layer, we consider the B-tree as the user of pages.
 When a B-tree entry is updated, the bytes written logically include not only the updated key but also any additional metadata required to maintain the tree structure.
 This can include information about node splits, merges, and the promotion of keys to parent nodes.
 The writes are amplified by the B-tree's page structure that requires rewriting the entire page even if only a small portion has changed.
 As mentioned in \autoref{sec:node-size-fanout}, the node size directly impacts the write amplification at this level.
-This is the write amplification we focus on in this thesis, by minimizing the number of pages written to storage for a given set of updates (see \autoref{chap:method}).
+This is the write amplification we focus on in this thesis, by minimizing the number of pages written to storage for a given set of updates.
+We essentially reduce write amplification by reducing the number of pages written physically for a given number of bytes written logically by the B-tree (see \autoref{chap:method}).
 
 \inlinesection{Physical Layer.}
 At the physical layer, we consider the database system as the user (the host) of the physical storage device.
@@ -184,7 +179,6 @@ Unnecessary writes by the database system are multiplied by \ac{SSD}.
 
 % See Bepsilon paper for more analytical model
 
-% TODO: We kina misuse this term in the evaluation chapter, since we do count the reads, not the total IO upon one read.
 \section{Read Amplification}
 \label{sec:read-amplification-background}
 Read amplification is the number of \ac{IO} operations required to answer a query \cite{kuszmaul2014fractal}.

@@ -179,7 +179,7 @@ We avoid writing individual pages as a whole, by deferring updates and buffering
 
 \section{Decoupling Storage from In-Memory Data Structures}
 \label{sec:related-work-fineline}
-Sauer et al. \cite{sauer2018fineline} propose FineLine, a storage manager that decouples in-memory data structures from persistence concerns in a database system.
+Sauer et al. propose FineLine \cite{sauer2018fineline}, a storage manager that decouples in-memory data structures from persistence concerns in a database system.
 In-memory data structures are never propagated to disk.
 Instead, FineLine merely uses the log for persistence.
 When an in-memory data structure (for example a B-tree) causes a cache miss, FineLine reconstructs its state by replaying the log of operations from disk.
@@ -200,7 +200,7 @@ Due to compaction, this search can be efficient.
 However, assume a high update rate on a certain data structure node.
 Many partitions of the log may contain updates for this node, requiring multiple reads from disk to reconstruct the node.
 
-% TODO: "Two is Better Than One: The Case for 2-Tree for Skewed Data Sets" https://www.cidrdb.org/cidr2023/papers/p57-zhou.pdf
+% "Two is Better Than One: The Case for 2-Tree for Skewed Data Sets" https://www.cidrdb.org/cidr2023/papers/p57-zhou.pdf
 
 \section{Transparent Compression}
 \label{sec:related-work-compression}

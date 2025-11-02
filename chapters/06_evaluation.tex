@@ -3,7 +3,6 @@
 
 % "Moreover, under large record size (e.g., 1KB and above), B+ tree tend to have smaller write amplification than LSM-tree." - from "Closing the B+-tree vs. LSM-tree Write Amplification Gap on Modern Storage Hardware with Built-in Transparent Compression", Qiao et al., FAST 2022
 % Good evaluation paper: https://dl.acm.org/doi/pdf/10.1145/3183713.3196895
-% To adhere to the DAM model, can't we assume that all inner nodes are cached in memory, but leafs are not? see "A Comparison of Fractal Trees to Log-Structured Merge (LSM) Trees"
 
 % - We reduce write amplification only if we write out a Delta Tree node with more than one entry since the last write-out.
 % - If we always write out a Delta Tree node already after a single change, we do not benefit.
@@ -91,6 +90,7 @@ The resulting workload has the following characteristics:
     \item The keys are variable-sized strings with an average length of 20.5 characters, a maximum length of 236 characters and a minimum length of 1 character.
 \end{itemize}
 
+
 \section{Results and Analysis}
 \label{sec:results-analysis}
 In this section, we present the results of our benchmark experiments and analyze the performance of the B-tree and 3B-tree indices.
@@ -102,9 +102,7 @@ The goal of this evaluation is to determine whether the 3B-tree can reduce \ac{I
 \subsection{Write Amplification}
 \label{sec:write-amplification}
 For a first analysis, we consider the write amplification of the B-tree and 3B-tree indices when running the mixed Wikipedia Pageviews workload with 5\% updates on the sample dataset.
-For now, we run the workload on the indices directly without the overhead of the database system in the buffer.
-% TODO: Check if this is still true:
-To gain a holistic view of the performance, we will also run the workload on the whole database in \autoref{sec:database-evaluation}.
+We run the indices in isolation to focus on the performance of the indices themselves without the overhead of maintaining the table data.
 We benchmarked with 4 KB pages, a buffer pool of 400 pages (\textasciitilde80\% of the B-Tree pages), and a write threshold of 5\% (i.e. we only write pages to disk if >5\% of the page has been modified in the case of a 3B-tree index).
 The base B-tree in both indices produce a tree with 502 nodes in total.
 Both inner and leaf nodes fit 170 entries each, while the average node is filled to \textasciitilde70\%.
@@ -125,7 +123,7 @@ This shows that we successfully defer small writes across the B-tree and batch t
 
 In the following sections, we analyze the performance of the 3B-tree under different scenarios and workloads to understand its strengths and weaknesses.
 
-% TODO: Index as part of the database vs. index in isolation
+% Index as part of the database vs. index in isolation
 % When running the workload on the database as a whole (\autoref{fig:sub1}), we see a reduction in page writes of \textasciitilde23\% when using the 3B-tree compared to the B-tree.
 % When running the workload on the indices directly (\autoref{fig:sub2}), we see a more significant reduction in page writes of \textasciitilde66\% when using the 3B-tree compared to the B-tree.
 
@@ -692,5 +690,3 @@ To summarize, our method works with variable-sized keys as well, but the write r
 \end{table}
 
 % \subsection*{Different Page Sizes}
-
-%TODO: Compare performance with sequential updates vs random updates.

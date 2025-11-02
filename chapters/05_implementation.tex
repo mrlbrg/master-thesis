@@ -444,7 +444,7 @@ We tested the buffer manager, the slotted pages, the B-tree, and the 3B-tree sep
 We also wrote integration tests to test the interaction between the components.
 
 % \section{Challenges and Trade-offs}
-% TODO: Maybe add this section.
+% Maybe add this section.
 % Want to keep compactification. Otherwise we could put changes in delta tree and then do unneccessary splits because the node does not have enough space after applying the changes again witout compactification.
 
 % Locking a node to protect recursive evictions.
@@ -460,17 +460,9 @@ We also wrote integration tests to test the interaction between the components.
 
 % What happens on destruction? (see Storyline)
 
-% Size of the operation state field in the slot. 2 bit should be enough.
-
-% Recursive eviction calls to Delta Tree. Can access unintialized root node.
-
 % Want to keep Deltas in the tree after applying them to be able to just throw them away when only reading. Less changes to the tree
 % However: what do we do with stale deltas? Do we want to apply the at some point?
 % We have an incentive to keep the Delta Tree small to batch changes more effectively. Therefore we can evict changes from the Delta Tree if they have not been used for a while.
 % Also we should only track small changes. If a page has a lot of changes, it is better to write it out and not track it anymore.
 
 % When deltas become too big they might not fit a single leaf node in the Delta Tree anymore. That's a limitation. All pages are of same size.
-
-% Deltas have lower fanout because of variable sized values. Therefore we have a taller tree and more IOs to access a delta.
-
-% Locking the Delta Tree to protect against recursive calls.
