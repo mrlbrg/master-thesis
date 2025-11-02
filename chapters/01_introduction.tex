@@ -22,20 +22,20 @@
   \label{fig:access-pattern-comparison}
 \end{figure}
 
-Efficiently managing large data sets is a core requirement for database systems. 
+Efficiently managing large datasets is a core requirement for database systems. 
 % Not only have \ac{SSD} become drastically cheaper, they also achieve excellent throughput, making them an attactive, cost-effective storage medium \cite{haas2023modern}.
 % Yet, external storage accesses remain magnitudes slower than main memory accesses.
 % The largest overhead in beyond memory systems lies in \ac{IO} operations on external storage. 
-Therefore, minimizing \ac{IO} operations remains the fundamental premise for designing modern, high-performance \ac{DBMS}.
-Primarily, this is done by caching frequently accessed pages in \ac{DRAM} using a buffer manager \cite{leis2018leanstore}.
+Therefore, minimizing \ac{IO} operations remains a fundamental principle in the design of modern, high-performance \ac{DBMS}.
+This is primarily achieved by caching frequently accessed pages in \ac{DRAM} using a buffer manager \cite{leis2018leanstore}.
 The system stores data in pages, which the buffer manager can cache and uniformly serve to all components in the system.
-This modular design separates concerns between the buffer manager and its users, such as indexes and data structures.
-However, this also means that the buffer manager is agnostic of user access patterns.
+This modular design separates concerns between the caching layer and data layer, such as indices and data structures.
+However, this also means that the buffer manager is agnostic to user access patterns.
 While the buffer manager minimizes the number of \ac{IO} operations, to the best of its knowledge, every system component must design its access patterns to be as efficient as possible. 
 
 A prominent example of such a component is the B-tree \cite{bayer1970organization}.
 B-trees are the dominant data structure for indexing large datasets in disk-based \ac{DBMS} due to their excellent lookup performance, support for range queries, and simplicity.
-However, random writes, a prevalent pattern for secondary indexes, lead to inefficient access patterns that a buffer manager cannot hide for out-of-memory workloads.
+However, random writes, a prevalent pattern for secondary indices, lead to inefficient access patterns that a buffer manager cannot hide in out-of-memory workloads.
 
 B-trees organize their nodes as pages. 
 Due to their sorted order, accessing random keys leads to random accesses of different pages, which the buffer manager must load into the buffer.
@@ -45,15 +45,14 @@ We consider three updates to the tree.
 In the sequential update, the B-tree reads only three pages and writes to one of them.
 In the random update, the B-tree reads six pages and writes to three of them.
 Merely changing the access pattern from sequential to random leads to a threefold increase in the amount of data written to storage.
-Assuming that each page is 4 KB, the sequential update requires one storage write of 4 KB.
-The random update requires three storage writes of 12 KB in total.
-Random writes introduce \emph{write amplification}, a phenomenon where the amount of data written to storage is significantly larger than the amount of data that logically changed.
+Assuming that each page is 4 KB, the sequential update requires one storage write of 4 KB, while the random update requires three storage writes of 12 KB in total.
+Random writes introduce \emph{write amplification}, a phenomenon in which the amount of data written to storage is significantly larger than the amount of data that logically changed.
 
-Write amplification inflates \ac{IO} operations, wastes bandwidth, and ultimately increases latency in bandwidth-bound scenarios.
+Write amplification inflates \ac{IO} operations, wastes bandwidth, and ultimately increases latency in \ac{IO}-bound scenarios.
 For example, in cloud environments, where storage can be remote, an unnecessary network round-trip directly translates to increased latency and reduced throughput in the system.
 
-Additionally, the \ac{SSD} has its own internal write amplification due to its flash translation layer performing garbage collection \cite{haas2023modern}. 
-This leads to a multiplication of unnecessary physical writes, wearing out the device faster.
+Additionally, the \ac{SSD} has its own internal write amplification due to its flash translation layer's garbage collection process \cite{haas2023modern}. 
+This results in additional unnecessary physical writes, causing the device to wear out faster.
 
 In summary, to design a truly efficient, high-performance system, we must minimize \ac{IO} operations in all components of the storage stack. 
 This thesis focuses on closing the efficiency gap in B-trees by reducing write amplification.
@@ -77,17 +76,17 @@ We identify a research gap for a B-tree variant that effectively reduces write a
 \section{Objectives}
 % Explicitly list what your thesis adds to the field.
 The primary objective of this thesis is to design, implement, and evaluate a B-tree variant that reduces write amplification while maintaining the high read performance and concurrency of traditional B-trees.
-We focus on the following research questions:
+We focus on the following two research questions:
 \begin{enumerate}
   \item How can we effectively reduce write amplification in B-trees?
   \item How can we preserve read performance and concurrency in the presence of write optimizations?
-  \item How does the proposed approach compare to existing methods regarding write amplification, query performance, and throughput?
-  \end{enumerate}
+\end{enumerate}
 
 While we reflect on significant hardware trends in this thesis, such as the increasing prevalence of \ac{SSD}, we do not target optimizations for specific hardware features.
 Instead, we aim to design a solution that is broadly applicable across different storage media and hardware configurations.
 
 We also do not aim to outperform \ac{LSMT} in write-intensive workloads, as they are fundamentally optimized for such scenarios, trading off lookup performance.
+Instead, we aim to close the B-tree's efficiency gap under random writes while preserving its strengths: versatility, concurrency, and simpliticity.
 
 While the page-oriented design is one reason for \ac{IO} amplification in B-trees in general, we do not aim to redesign the data structure from the ground up.
 Instead, we focus on a lightweight extension to the traditional B-tree that can be integrated into existing systems with minimal changes.
@@ -100,12 +99,12 @@ The buffering layer batches small write operations, reducing the frequency and v
 When the buffer manager evicts a B-tree node from memory, we determine whether it has changed significantly enough to warrant a full write to storage.
 If not, we buffer the changes.
 % When loading a B-tree node from storage, we apply any buffered changes from the Delta Tree to reconstruct the most recent state of the node.
-Essentially, we minimize \ac{IO} operations to those strictly necessary. 
+We aim to minimize write operations to those strictly necessary. 
 
 The novelty of our approach lies in its non-intrusive design: 
 We only perform additional operations when the buffer manager exchanges B-tree nodes between memory and external storage.
-In contrast to other approaches (see \autoref{chap:related-work}), we neither alter the B-tree structure its fundamental operations, nor impact concurrency in the tree.
-We keep read amplification low by only introducing additional lookups during page reads.
+In contrast to other approaches (see \autoref{chap:related-work}), we neither alter the B-tree's structure nor its fundamental operations, nor impact concurrency in the tree.
+We keep read amplification low by only introducing additional lookups during a B-tree's page reads.
 Our approach is easy to integrate into existing systems and preserves the desirable properties of traditional B-trees.
 
 We hereby contribute to the broader effort of minimizing the overhead of beyond memory systems and designing efficient, high-performance database systems for modern hardware.

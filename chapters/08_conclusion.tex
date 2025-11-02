@@ -13,7 +13,7 @@ By deferring and consolidating small changes, the 3B-tree minimizes unnecessary 
 The main contributions of this work can be summarized as follows:
 
 \begin{itemize}
-    \item \textbf{A leightweight buffering layer for B-trees:}  
+    \item \textbf{A lightweight buffering layer for B-trees:}  
     The Delta Tree acts as a transparent, non-intrusive extension between the B-tree and buffer manager, reducing write amplification through selective batching and deferred persistence.
 
     \item \textbf{A detailed implementation and evaluation:}  
@@ -24,20 +24,20 @@ The main contributions of this work can be summarized as follows:
     Across a variety of configurations, the 3B-tree achieved up to 70\% fewer page writes than a standard B-tree. This confirms that lightweight batching can significantly mitigate write amplification. 
 
     \item \textbf{Identification of workload-dependent trade-offs:}  
-    Caching is the fundamental idea of this method, therefore a certain memory availability is required.
+    Caching is the fundamental idea of this method; therefore, a certain memory availability is required.
     Further, the evaluation revealed that the balance between write reduction and read amplification affects overall performance.
     The 3B-tree performs best in moderately sized buffer pools and update-heavy workloads.
 \end{itemize}
 
 The reason B-trees are so widely used is their balanced performance characteristics across a range of workloads.
 However, their random write performance lags behind the otherwise strong efficiency.
-With the 3B-tree we sacrifice some read performance but enable substantial write reductions in write-intensive scenarios.
+With the 3B-tree, we sacrifice some read performance but enable substantial write reductions in write-intensive scenarios.
 We argue that this evens out the performance landscape between read and write operations in traditional B-trees.
 
 The goal of this thesis has thus been met by demonstrating that write amplification in B-trees can be substantially reduced through a simple buffering extension.
 
 \section{Significance of Results}
-The results of this work demonstrate that substantial write amplification reductions can be achieved without resorting to invasive structural changes, a limit on concurrency, or a prohibitive read overhead such as \ac{LSMT} or B$\varepsilon$-trees.
+The results of this work demonstrate that substantial write amplification reductions can be achieved without resorting to invasive structural changes, a limit on concurrency, or a prohibitive read overhead, such as \ac{LSMT} or B$\varepsilon$-trees.
 Moreover, by lowering write amplification, the 3B-tree indirectly mitigates device-level wear on SSDs, contributing to longer hardware lifespans and reduced operational cost. 
 
 \section{Outlook and Final Thoughts}

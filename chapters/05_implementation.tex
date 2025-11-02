@@ -12,28 +12,28 @@ Each component requests a page with \texttt{fix\_page} returning a buffer frame.
 After operating on the page, the page is released again by calling \texttt{unfix\_page} on the given frame.
 The user can pass a boolean flag to indicate whether the page was modified or not.
 
-When fixing a page we can pass a pointer to a \texttt{PageLogic} object.
+When fixing a page, we can pass a pointer to a \texttt{PageLogic} object.
 \texttt{PageLogic} is an abstract class that can be defined by the user to inject user-specific logic into the buffer manager.
 This object will be called by the buffer manager when a page is loaded from external storage to memory or evicted from memory.
 This allows us to insert user-specific logic, such as invoking the Delta Tree upon eviction, without coupling the two components.
 
-If a page is not already present in the buffer pool, it is loaded from a file from storage. 
+If a page is not already present in the buffer pool, it is loaded from a file in storage. 
 If a \texttt{PageLogic} object is injected into the page's corresponding frame, we call it to perform user-specific logic on the loaded page.
 When the user unfixes the page again, we keep the page in the buffer pool until it is chosen for eviction.
 
 When the buffer pool is full, our buffer manager selects a page for eviction. 
-The eviction strategy is not under inspection in this thesis, therefore we choose a page at random.
+The eviction strategy is not under inspection in this thesis; therefore, we choose a page at random.
 Should the page be marked dirty or new, we call the \texttt{PageLogic} object.
 Should it return true, we continue writing the page to storage.
-Should it return false, we do not continue with the write and simply discard the page.
+Should it return false, we do not continue with the write and discard the page.
 
 \subsection*{Slotted Pages}
 
 We store tuples within slotted pages, accessed through the buffer manager.
-As shown in \autoref{fig:slotted-page}, a slotted page consists of a header, a slot array and a data segment.
+As shown in \autoref{fig:slotted-page}, a slotted page consists of a header, a slot array, and a data segment.
 The header contains metadata about the page, such as the number of slots and the pointer to the data segment.
 Each slot points to the corresponding tuple data stored in the data segment.
-Through this indirection we can accommodate for variable-length tuples \cite{mdbs2024slides}.
+Through this indirection, we can accommodate variable-length tuples \cite{mdbs2024slides}.
 Introducing this indirection impacts the cache locality as we need to follow an additional pointer for every comparison.
 There are some optimizations, such as storing parts of the key in the slot itself to speed up comparisons \cite{graefe2014memory}.
 Since our approach is orthogonal to these optimizations, we do not implement them in our prototype.
@@ -42,7 +42,7 @@ Each tuple in the system is identified through its unique \ac{TID}.
 Each \ac{TID} consists of 8 B, whereas the upper 6 B contain the \ac{PID} and the lower 2 B contain the slot's ID.
 
 When looking up a tuple in the system, we retrieve the corresponding \ac{TID} from the index given the key.
-Through the \ac{TID} we can request the corresponding page through the \ac{PID} from the buffer manager.
+Through the \ac{TID}, we can request the corresponding page through the \ac{PID} from the buffer manager.
 When loaded into memory, we can access the slot through the slot ID and retrieve the actual tuple data.
 
 When inserting a new tuple, we first need to find an appropriate page to store it in.
@@ -59,7 +59,7 @@ We then create a new \ac{TID} for the tuple and insert it into the index.
 
 \subsection*{B-tree}
 
-As shown in \autoref{fig:leaf-node}, each node in our B-tree is implemented similar to a slotted page to accommodate variable-sized keys and values.
+As shown in \autoref{fig:leaf-node}, each node in our B-tree is implemented similarly to a slotted page to accommodate variable-sized keys and values.
 While we depict a leaf node in the figure, inner nodes are implemented similarly.
 Leaf nodes store keys and values, whereas inner nodes store keys and \ac{PID}s to child nodes.
 
@@ -70,7 +70,7 @@ This allows us to use the same B-tree implementation for both the standard B-tre
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=1\textwidth]{figures/leaf_node.pdf}
-  \caption{The data layout of a leaf node in the B-tree supporting variable-sized keys and values. The header contains metadata about the node, such as the level in the tree, the offset to the data segment and the number of slots. The slots point to the actual entries stored in the data segment. The data segment contains the keys and values. Inner nodes store keys and pointers to child nodes. Adapted from "Database Systems on Modern CPU Architectures" \autocite{mdbs2024slides}.}
+  \caption{The data layout of a leaf node in the B-tree supports variable-sized keys and values. The header contains metadata about the node, such as the level in the tree, the offset to the data segment, and the number of slots. The slots point to the actual entries stored in the data segment. The data segment contains the keys and values. Inner nodes store keys and pointers to child nodes. Adapted from "Database Systems on Modern CPU Architectures" \autocite{mdbs2024slides}.}
   \label{fig:leaf-node}
 \end{figure}
 
@@ -90,17 +90,17 @@ When set to true, we extend the page header and slots with additional fields to 
 
 \inlinesection{Header.}
 The header is extended by a \texttt{uint16\_t bytes\_changed} field to track the degree of write amplification on the page.
-Everytime a change is made to the page, we increase this counter by the number of bytes changed.
+Every time a change is made to the page, we increase this counter by the number of bytes changed.
 When the page is evicted, we can use this information to decide whether to write out the page or not.
 However, this is only an approximation of the actual write amplification, as some changes might be overwritten by subsequent changes.
-For example, a node split, where we remove half the entries, followed by several insertions can lead to more bytes changed than the actual node size.
+For example, a node split, where we remove half the entries, followed by several insertions, can lead to more bytes changed than the actual node size.
 
 \inlinesection{Slots.}
-Each slot is extended by a \texttt{state} field to track whether the corresponding entry was \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated} or \texttt{Deleted} since the last time the page was written to storage.
+Each slot is extended by a \texttt{state} field to track whether the corresponding entry was \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated}, or \texttt{Deleted} since the last time the page was written to storage.
 More specifically, it does not track the change of the entry itself, but rather the change of the entry from the perspective of the node.
 For example, if an entry is split off during a node split, the slot is deleted from the perspective of the node.
 The entry still exists in the tree, but it is now part of a different node.
-To the new sibling node, where we move over the split off entry, the slot is marked as \texttt{Inserted}.
+To the new sibling node, where we move over the split-off entry, the slot is marked as \texttt{Inserted}.
 To reconstruct the state of a node when loading it from storage again, we need to know whether an entry was newly inserted or whether it existed on disk already and was only updated in memory.
 Assume a deletion of an entry that was inserted since the last write to storage.
 In that case, we can simply discard the slot and do not need to store any delta for it.
@@ -109,18 +109,18 @@ Therefore, we need to differentiate between newly inserted entries and existing 
 The state machine of the operation state field is shown in \autoref{fig:slot-states} and elaborated in \autoref{sec:algorithms}.
 
 Since we only have four states, we can store the state in two bits only.
-Therefore, we can hide the space overhead of the state field by using the upper two bits of the 32 bit offset field in the slot, assuming that we do not need more than 30 bits to address all offsets on the page.
-This is crucial to keep the fanout of the tree as high as possible. Otherwise we would introduce more pages than the baseline B-tree, negatively impacting performance.
+Therefore, we can hide the space overhead of the state field by using the upper two bits of the 32-bit offset field in the slot, assuming that we do not need more than 30 bits to address all offsets on the page.
+This is crucial to keep the fanout of the tree as high as possible. Otherwise, we would introduce more pages than the baseline B-tree, negatively impacting performance.
 
 \inlinesection{Buffer Manager Integration.}
 Our Delta Tree uses this information to determine which changes to store.
-When a B-tree with tracking enabled, fixes a page through the buffer manager, it injects a \texttt{PageLogic} object into the page's frame.
+When a B-tree with tracking enabled fixes a page through the buffer manager, it injects a \texttt{PageLogic} object into the page's frame.
 The buffer manager calls this object later when evicting the node to interact with the Delta Tree to extract deltas and to apply deltas when loading the node from storage again.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=1\textwidth]{figures/b_tree_with_tracking.pdf}
-  \caption{A B-tree with tracking enabled. The header is extended by a \texttt{bytes\_changed} field to track the degree of write amplification on the page. Each slot is extended by a \texttt{state} field to track whether the corresponding entry is \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated} or \texttt{Deleted}.}
+  \caption{A B-tree with tracking enabled. The header is extended by a \texttt{bytes\_changed} field to track the degree of write amplification on the page. Each slot is extended by a \texttt{state} field to track whether the corresponding entry is \texttt{Unchanged}, \texttt{Inserted}, \texttt{Updated}, or \texttt{Deleted}.}
   \label{fig:B-tree-with-tracking}
 \end{figure}
 
@@ -130,36 +130,36 @@ It is also a B-tree but templated on a \ac{PID} as \texttt{KeyT} and a variable-
 
 The \texttt{Delta} array stores the changes made to the corresponding page in the B-tree.
 A \texttt{Delta} array can contain either \texttt{InnerNodeDelta}s or \texttt{LeafDelta}s.
-\texttt{InnerNodeDelta}s represent changes to inner nodes, therefore they store keys and \ac{PID} changes.
-\texttt{LeafDelta}s represent changes to leaf nodes, therefore they store keys and \ac{TID} changes.
+\texttt{InnerNodeDelta}s represent changes to inner nodes; therefore, they store keys and \ac{PID} changes.
+\texttt{LeafDelta}s represent changes to leaf nodes; consequently, they store keys and \ac{TID} changes.
 
 Each \texttt{Delta} array stores the \texttt{slot\_count} of the corresponding page in the B-tree at the time of eviction.
-For \texttt{InnerNodeDelta}s we additionally store the \texttt{upper} child \ac{PID}.
+For \texttt{InnerNodeDeltas}, we additionally store the \texttt{upper} child \ac{PID}.
 We do not need to store the level of the node, as a page never changes its level. 
 Therefore, we can retrieve this information from the B-tree when extracting or applying deltas.
 
-After extracing and storing the \texttt{Deltas} of a B-tree node in the Delta Tree, we can discard the node's page from the buffer manager without writing it to storage.
+After extracting and storing the \texttt{Deltas} of a B-tree node in the Delta Tree, we can discard the node's page from the buffer manager without writing it to storage.
 When the node is loaded from storage again, we can apply the stored \texttt{Deltas} to reconstruct the state of the node at the time of eviction.
-In \autoref{sec:algorithms} we elaborate how we can reconstruct the state of a node from the information stored in the Delta Tree together with the disk-state of the node.
+In \autoref{sec:algorithms}, we elaborate on how we can reconstruct the state of a node from the information stored in the Delta Tree together with the disk state of the node.
 
 \subsection*{Database}
 Our database class ties all components together.
-It owns the buffer manager, the index and the slotted pages.
-It exposes a simple key-value interface to the user, allowing to insert, update, delete and lookup tuples by keys.
+It owns the buffer manager, the index, and the slotted pages.
+It exposes a simple key-value interface to the user, allowing them to insert, update, delete, and look up tuples by keys.
 The class is templated on the key type \texttt{KeyT} and the index type \texttt{IndexT}.
 For simplicity, we only support a single table and a single \texttt{uint64\_t} value in our implementation.
-Through the \texttt{IndexT} template parameter, the user can choose between a standard B-tree or a 3B-tree as index structure.
+Through the \texttt{IndexT} template parameter, the user can choose between a standard B-tree or a 3B-tree as the index structure.
 
 Whenever a user requests an operation, the database class translates it into the corresponding operations on the index and the slotted pages.
 
 \section{Algorithms}
 \label{sec:algorithms}
-In this section we describe the algorithms for the main operations of our 3B-tree.
-While most operations are similar to a standard B-tree \cite{mdbs2024slides}, we describe how we extend them to support tracking changes and ensure that we do not loose any changes made to a node.
-We then describe how we use the tracking information in the B-tree nodes to extract deltas when evicting a node from memory and how we can reconstruct the state of a node when loading it from storage again.
+In this section, we describe the algorithms for the main operations of our 3B-tree.
+While most operations are similar to a standard B-tree \cite{mdbs2024slides}, we describe how we extend them to support tracking changes and ensure that we do not lose any changes made to a node.
+We then describe how we use the tracking information in the B-tree nodes to extract deltas when evicting a node from memory, and how we can reconstruct the state of a node when loading it from storage again.
 
 We do not implement concurrency or node merges in our implementation and therefore do not describe them here.
-However, all algorithms were implemented with concurrency in mind and therefore can be extended to support it.
+However, all algorithms were implemented with concurrency in mind, and therefore, can be extended to support it.
 
 \begin{figure}[htbp]
   \centering
@@ -177,7 +177,7 @@ However, all algorithms were implemented with concurrency in mind and therefore 
 \end{figure}
 
 \subsection*{Lookup}
-A lookup operation is straightforward in a 3B-tree, we merely perform a standard B-tree lookup.
+A lookup operation is straightforward in a 3B-tree; we merely perform a standard B-tree lookup.
 We first access the root node and traverse the tree down to the leaf level, following the appropriate child pointers based on the key being looked up.
 We always perform binary search within a node to find the appropriate slot. 
 Once we reach the leaf level, we perform a final binary search to find the key.
@@ -190,16 +190,16 @@ Since we do not modify any nodes during a lookup, we do not need to update any t
 \subsection*{Insert}
 To perform an insertion, we first traverse the tree down to the appropriate leaf node as described in the lookup operation.
 
-Possibly, the leaf node does not have enough space to accommodate the new entry.
+The leaf node may not have enough space to accommodate the new entry.
 In this case, we need to split the node first (see Split~\ref{subsec:split}).
 Once we have an appropriate leaf node with enough space, we insert the new entry into the node.
 
 Since we want to perform binary search within the node, we keep the slots sorted by key.
-Therefore, we search for the \texttt{lower\_bound} of the new key to find the appropriate position in the slot array to insert the new slot.
+Therefore, we search for the \texttt{lower bound} of the new key to find the appropriate position in the slot array to insert the new slot.
 We then shift all slots after the insertion position by one to make space for the new slot.
 We then insert the new slot and the corresponding key and value into the data segment.
 
-The property that slots are always sorted by key is important for the following algorithms.
+The property that slots are always sorted by key is essential for the following algorithms.
 
 \inlinesection{Tracking.} 
 When inserting a new entry into a node, we need to update the tracking information accordingly.
@@ -207,14 +207,14 @@ Firstly, we increase the \texttt{bytes\_changed} field in the header by the size
 Secondly, we set the \texttt{state} field of the new slot to \texttt{Inserted}.
 
 A new slot always starts in the \texttt{Inserted} state, as it does not exist on disk (see \autoref{fig:slot-states}).
-Any subsequent updates to this slot do not change this state, as to the disk image it is still a new slot.
-During delta extraction, we simply store the latest key and value of this new slot.
-If the new entry is deleted again before the page is evicted, we can simply discard the slot and do not need to store any delta for it.
+Any subsequent updates to this slot do not change this state; as to the disk image, it is still a new slot.
+During delta extraction, we store the latest key and value of this new slot.
+If the new entry is deleted again before the page is evicted, we can discard the slot and do not need to store any delta for it.
 To the disk image, it is as if the entry was never inserted.
 
 \subsection*{Update}
 To perform an update on an entry, we first traverse the tree down to the appropriate leaf node as described in the lookup operation.
-Once we reach the leaf level, we perform binary search to find the slot with the given key.
+Once we reach the leaf level, we perform a binary search to find the slot with the given key.
 If the key is found, we update the corresponding entry in the data segment.
 Our prototype only supports updates to values of the same size as the old value.
 During node splits, for example, we must update the child pointers of the entries in the parent node (see Split~\ref{subsec:split}).
@@ -226,16 +226,16 @@ When updating an existing entry in a node, we increase the \texttt{bytes\_change
 If the entry was previously marked as \texttt{Inserted} or \texttt{Deleted}, we do not increase the \texttt{bytes\_changed} field, as we have already accounted for it.
 
 We then set the state field of the slot to \texttt{Updated} if it was previously \texttt{Unchanged}.
-If the slot was previously marked as \texttt{Inserted}, we do not change its state, as to the disk image it is still a new slot.
+If the slot was previously marked as \texttt{Inserted}, we do not change its state, as to the disk image, it is still a new slot.
 
 \subsection*{Delete}
 \label{subsec:delete}
 To perform a delete operation, we would first traverse the tree down to the appropriate leaf node as described in the lookup operation.
-We then perform binary search to find the slot with the given key.
+We then perform a binary search to find the slot with the given key.
 If the key is found, we remove the slot from the array and the corresponding entry from the data segment.
 We do not reclaim the space in the data segment eagerly on every deletion.
 Instead, we compactify lazily. 
-For example, during a node split we remove half of the slots and their data, justifying a compactification.
+For example, during a node split, we remove half of the slots and their data, justifying a compactification.
 
 \inlinesection{Tracking.}
 While we do not implement deletion tracking in our current implementation, we describe how we would implement it here for completeness.
@@ -243,25 +243,25 @@ When deleting an existing entry in a node, we increase the \texttt{bytes\_change
 When it was previously \texttt{Inserted}, we decrease the \texttt{bytes\_changed} field, since the insert never happened from the perspective of the disk image of the node.
 For the same reason, we only actually delete the slot and entry if it was also \texttt{Inserted} since its last write to storage.
 In any other case, we cannot immediately delete the slot.
-This is, because we must indicate the deletion to the Delta Tree.
-The entry exists on disk and without an entry to track the deletion, we would not be able to create a delta for it.
+This is because we must indicate the deletion to the Delta Tree.
+The entry exists on disk, and without an entry to track the deletion, we would not be able to create a delta for it.
 When loading the node again from storage, the deleted entry would reappear.
 Therefore, we set the \texttt{state} field of the slot to \texttt{Deleted} instead.
-Only when the page is written to disk, we actually delete all slots marked as \texttt{Deleted} from the node.
-Should an insertion for the same key follow, we can simply reuse the slot marked as \texttt{Deleted}, changing its state to \texttt{Updated}.
+Only when the page is written to disk we actually delete all slots marked as \texttt{Deleted} from the node.
+Should an insertion for the same key follow, we can reuse the slot marked as \texttt{Deleted}, changing its state to \texttt{Updated}.
 To the disk image, it is as if the entry was never deleted in between.
 
 \subsection*{Split}
 \label{subsec:split}
 When a leaf node does not have enough space to accommodate a new entry, we need to split the node first.
 To address the possibility of concurrent splits in the future, we use a restart mechanism.
-Our method is independent of the split strategy and can therefore be easily adapted to different strategies to optimize for concurrency for example.
+Our method is independent of the split strategy and can therefore be easily adapted to different strategies to optimize for concurrency, for example.
 
 We first traverse the tree down to the appropriate leaf node as described in the lookup operation.
-However this time, we keep track of the path taken down the tree and keep the pages fixed in memory.
+However, this time, we keep track of the path taken down the tree and keep the pages fixed in memory.
 Once we reach the leaf level, we check whether the node has enough space to accommodate the new entry in the current iteration.
 Firstly, this is necessary in a concurrent setting, as another thread might have split the node in the meantime.
-Secondly, this is necessary, because splitting a leaf node once might not be enough to accommodate the new entry when supporting variable-sized entries.
+Secondly, this is necessary because splitting a leaf node once might not be enough to accommodate the new entry when supporting variable-sized entries.
 For example, we could have a new entry that is as large as the entire node.
 In that case, we would need to split the node multiple times until we reach an empty node.
 
@@ -275,7 +275,7 @@ If the parent node does not have enough space to accommodate the new fence key a
 We repeat this process until we reach a node that has enough space in an upwards motion.
 Should we reach the root node and it does not have enough space, we create a new root node, increasing the tree's height by one.
 Once a node has enough space, we can insert the new entry and move back down the tree to insert the respective entries on each level.
-Again, we might need to split nodes on the way down again, since we support variable-sized keys.
+Again, we might need to split nodes on the way down, since we support variable-sized keys.
 Therefore, we can repeatedly move down and up the tree until we reach the leaf level again.
 When reaching the leaf level, we repeat the process until the leaf has enough space to accommodate the new entry.
 
@@ -305,24 +305,24 @@ If the entry was previously \texttt{Inserted} or \texttt{Updated}, those \texttt
 
 As we discussed in the delete operation (see Subsection~\ref{subsec:delete}), we usually cannot actually delete the slots from the node, as we need to track the deletion as a delta to ensure that we do not make entries reappear when loading the node from storage again.
 However, we cannot mark the slots as \texttt{Deleted}, since that would keep the data in the node and therefore not free up any space, negating the purpose of a node split.
-For node splits we use a different approach.
-Due to the fact that slots are always sorted by key and we always split the node in half, we can use the \texttt{slot\_count} field in the header to determine which slots are still part of the node and which slots were split off.
-Therefore, we do not need to keep any tracking information for the split off slots.
+For node splits, we use a different approach.
+Because slots are always sorted by key and we always split the node in half, we can use the \texttt{slot\_count} field in the header to determine which slots are still part of the node and which slots were split off.
+Therefore, we do not need to keep any tracking information for the split-off slots.
 Instead, we store the \texttt{slot\_count} of the node at the time of eviction in the corresponding \texttt{Delta} array.
 When applying deltas to a node, we can use this information to determine which slots are still part of the node and which slots were split off.
-This way, we can discard split off nodes, freeing up space for new entries.
-To the new sibling node, the moved over slots are marked as \texttt{Inserted}.
-This is not necessary though when we create a new node, as new nodes are always written out to storage on eviction.
+This way, we can discard split-off nodes, freeing up space for new entries.
+To the new sibling node, the moved-over slots are marked as \texttt{Inserted}.
+This is not necessary, though, when we create a new node, as new nodes are always written out to storage on eviction.
 At that point, all slots of the new node return to an \texttt{Unchanged} state.
 
 Due to node splits, the \texttt{bytes\_changed} field can become larger than the node's page size.
 Assume a node that is full on disk. 
 When loading it into memory, we split it, counting the bytes of half of the slots that we split off.
 This should set the \texttt{bytes\_changed} field to about 50\% of the node size with fixed-sized entries.
-However, when we insert new entries into the node after the split, filling the freed space.
+However, when we insert new entries into the node after the split, we fill the freed space.
 This can increase the \texttt{bytes\_changed} field to 100\% of the node size.
 Assume that all these inserted entries are in the left half of the slots.
-This can happen because the slots are sorted by key and we might insert keys that are smaller than the keys in the right half.
+This can happen because the slots are sorted by key, and we might insert keys that are smaller than the keys in the right half.
 When splitting the node again, we again count the bytes of half of the slots that we split off, exceeding the node size in the \texttt{bytes\_changed} field.
 The key point here is the interpretation of the \texttt{bytes\_changed} field.
 It is not a precise measurement of the actual bytes changed.
@@ -332,7 +332,7 @@ This helps us to decide whether a write is justified or not.
 \inlinesection{Tracking Inner Node Changes.}
 As described above, when a child node splits, we need to insert the new fence key and new child pointer into the parent node.
 The key that is already present in the parent node remains unchanged, as it still forms the upper bound of that range.
-However, it is now the upper bound of the new sibling node. Therefore we perform an update on the existing slot, changing the child pointer to the new sibling node.
+However, it is now the upper bound of the new sibling node. Therefore, we perform an update on the existing slot, changing the child pointer to the new sibling node.
 The tracking information for that node changes according to the update operation described above.
 The new fence key is now the upper bound for the split node. 
 Therefore, we insert a new slot into the parent node with the new fence key and the old child pointer.
@@ -344,7 +344,7 @@ To reclaim free space, we compactify a node by defragmenting the data segment.
 Fragmentation in a node occurs through deletions, since we do not reclaim the space in the data segment eagerly.
 This would require moving possibly all entries in the data segment and updating the corresponding slots.
 This would be an expensive operation to perform on every deletion.
-Instead, we perform compactification lazily, for example after a node split.
+Instead, we perform compactification lazily, for example, after a node split.
 After a node split, half of the slots are removed from the node, freeing up a significant amount of space.
 More importantly, we split a node in particular to free up space for new entries.
 
@@ -357,21 +357,21 @@ Finally, we update the header to point to the new start of the data segment.
 \inlinesection{Tracking.}
 Since compactification only moves entries around in the data segment, we do not change the node logically.
 Therefore, we do not change any tracking information.
-However, compactification is an expensive operation and reclaiming space is important to keep the fanout of the tree high.
-We would like to maintain the space gains from compactification also after discarding the page and loading it again from memory.
-Therefore it makes sense to always write out a page after a node split, as a node split usually carries enough information through its structural changes to justify the write.
+However, compactification is an expensive operation, and reclaiming space is essential to keep the fanout of the tree high.
+We want to maintain the space gains from compactification, also after discarding the page and loading it again from memory.
+Therefore, it makes sense to always write out a page after a node split, as a node split usually carries enough information through its structural changes to justify the write.
 If we require more than 50\% change on the page to perform a write-out, this would be a given, since we change half of the node during node splits.
-In \autoref{chap:evaluation} we will see that requiring a degree of change of less than 50\% is a reasonable threshold to perform a write-out.
+In \autoref{chap:evaluation}, we will see that requiring a degree of change of less than 50\% is a reasonable threshold to perform a write-out.
 
 \subsection*{Eviction}
 When the buffer manager evicts a B-tree's node from memory, it evokes the injected Delta Tree.
 It needs to decide whether to write out the page to storage or not.
-To that end, we calculate the degree of change, by comparing the \texttt{bytes\_changed} field in the header to the size of the node.
+To that end, we calculate the degree of change by comparing the \texttt{bytes\_changed} field in the header to the size of the node.
 \[degree\_of\_change = bytes\_changed / page\_size\]
 The Delta Tree is passed a threshold parameter $write\_threshold$ between 0.0 and 1.0.
 It determines the minimum $degree\_of\_change$ required to justify a write-out of the page.
 $write\_threshold = 0.0$ means that we always write out the page to storage and never store deltas.
-High thresholds (e.g. over 50\%) are not expected to be useful in practice, as this will simply move write amplification to the Delta Tree.
+High thresholds (e.g., over 50\%) are not expected to be useful in practice, as this will simply move write amplification to the Delta Tree.
 However, we want to evaluate all ranges of thresholds to understand the trade-offs in \autoref{chap:evaluation}.
 Therefore, we allow the user to configure this threshold freely.
 
@@ -387,7 +387,7 @@ We indicate to the buffer manager to continue writing the page to storage.
 
 \subsection*{Extracting Deltas}
 If $degree\_of\_change \leq write\_threshold$, we extract all deltas from the node and store them in the Delta Tree.
-We scan the slot array of the node and for each slot that is not \texttt{Unchanged}, we create a corresponding delta.
+We scan the slot array of the node, and for each slot that is not \texttt{Unchanged}, we create a corresponding delta.
 The resulting delta array is then stored in the Delta Tree with the node's \ac{PID} as key.
 This is done with a standard B-tree insertion.
 Finally, we indicate to the buffer manager to discard the page without writing it to storage.
@@ -397,44 +397,28 @@ When the buffer manager loads a B-tree's node from storage, it invokes the injec
 We first check whether there are any deltas stored for the node's \ac{PID} in the Delta Tree.
 If not, we are done.
 Otherwise, we apply the deltas to the node.
-In the end we cut off any slots that were split off during a node split by using the stored \texttt{slot\_count} in the delta array.
-Since we apply inserts and updates before cutting off split slots, we can ensure that we do not let any entries reappear that were actually split off. 
+First, we apply all deletions.
+Then, we cut off any slots that were split off during a node split by using the stored \texttt{slot\_count} in the delta array.
+Then, we trigger the compactification of the node to reclaim any space from deleted slots and to defragment the data segment.
+This ensures that we do not exceed the node size when applying inserts.
+Then, we apply all updates and inserts.
 This must be correct, since we only store deltas for slots that are still part of the node at eviction time.
 Everything beyond the stored \texttt{slot\_count} was split off and therefore cannot be part of the node.
 
-\subsubsection*{Temporary Size Exceeding}
-When applying deltas to a node, we can exceed the node size temporarily.
-For example, we could have a node that is full on disk. 
-In memory it had been split and then some insertions followed. 
-When reconstructing the node from disk, we first load the full node from storage.
-We must first apply the deltas (insertions, updates, deletes) before we can cut off the split slots.
-This is because the \texttt{slot\_count} only indicates which slots are still part of the node having applied the deltas.
-Therefore, we can exceed the node size while applying deltas and before cutting off split slots.
-
-To address this, we allow exceeding the node size temporarily when a node becomes full while applying deltas:
-When inserting a new slot, we first check whether there is enough space in the node.
-If enough space is available, we proceed as usual.
-If not, we copy the current state of the node into a temporary buffer.
-The buffer is large enough to hold all deltas of the node.
-We then apply all remaining deltas into the temporary buffer.
-Once all deltas are applied, and split slots are identified, the original node size must be sufficient to hold all remaining slots.
-This is because the node was able to hold all remaining slots at eviction time.
-We compactify the temporary buffer to reclaim any space from deleted slots and then copy the compactified state back into the original node.
-
-\subsubsection*{Deleting Deltas}
+\subsubsection*{Deleting Deltas from the Delta Tree}
 After applying deltas to a node, we could delete the corresponding deltas from the Delta Tree.
 However, we decided against this for the following reasons:
 Assume a node is written to in memory and then evicted. 
 Its deltas are extracted and stored in the Delta Tree.
 Later, the node is loaded from storage again.
-Now, this node is needed again, loaded into memory but only read from until the next eviction.
+Now, this node is needed again, loaded into memory, but only read from until the subsequent eviction.
 If we had deleted the deltas after applying them, we would need to extract and store them again, dirtying the page.
 This would introduce unnecessary overhead.
-Instead, by keeping the deltas in the Delta Tree after applying them, we can simply discard the page when evicting it again without any changes.
-We can keep the page in a clean state to the buffer manager.
+Instead, by keeping the deltas in the Delta Tree after applying them, we can discard the page when evicting it again without any changes.
+We can keep the page in a clean state with the buffer manager.
 
 Therefore, after applying deltas to a node, we keep the corresponding deltas in the Delta Tree.
-Only when a node is written to again, we update the deltas in the Delta Tree accordingly during the next eviction.
+Only when a node is written to again do we update the deltas in the Delta Tree accordingly during the subsequent eviction.
 When a node is written to storage again, we delete the corresponding deltas from the Delta Tree.
 
 \section{Testing}

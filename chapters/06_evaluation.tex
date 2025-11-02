@@ -7,15 +7,15 @@
 % - We reduce write amplification only if we write out a Delta Tree node with more than one entry since the last write-out.
 % - If we always write out a Delta Tree node already after a single change, we do not benefit.
 
-This chapter evaluates the performance and effectiveness of the proposed 3B-tree in reducing write amplification compared to traditional B-Trees. 
+This chapter evaluates the performance and effectiveness of the proposed 3B-tree in reducing write amplification compared to traditional B-trees. 
 We describe the experimental setup (see \autoref{sec:experimental-setup}) and workloads (see \autoref{sec:workloads-datasets}) used, followed by an analysis of the results (see \autoref{sec:results-analysis}). 
-The evaluation aims to quantify the trade-offs between write amplification (see \autoref{sec:write-amplification}), read amplification (see \autoref{sec:read-amplification}), space and memory overhead (see \autoref{sec:space_overhead} and \autoref{sec:in-memory-overhead}), and to demonstrate that the 3B-tree achieves significant \ac{IO} reductions while maintaining the desirable properties of conventional B-Trees.
+The evaluation aims to quantify the trade-offs between write amplification (see \autoref{sec:write-amplification}), read amplification (see \autoref{sec:read-amplification}), space and memory overhead (see \autoref{sec:space_overhead} and \autoref{sec:in-memory-overhead}), and to demonstrate that the 3B-tree achieves significant \ac{IO} reductions while maintaining the desirable properties of conventional B-trees.
 
 \section{Experimental Setup}
 \label{sec:experimental-setup}
 Since we are interested in write amplification, we observe the number of page writes to disk for different workloads and different memory limitations.
-This way, our results are not biased by the specific implementation, optimizations, and hardware that we run our experiments on.
-All experiments were conducted locally on a Apple MacBook Pro with the specification listed in \autoref{tab:hardware-specs}.
+This way, our results are not biased by the specific implementation, optimizations, and hardware on which we run our experiments.
+All experiments were conducted locally on an Apple MacBook Pro with the specification listed in \autoref{tab:hardware-specs}.
 
 \begin{table}[htbp]
 \centering
@@ -59,7 +59,7 @@ $$
 consisting of the domain code, the page title, the number of views, and  the total response size in bytes.
 
 \subsubsection*{Data Augmentation}
-We use the hourly Pageview Wikipedia dataset from 1st of October 2025 at 00:00 UTC as our base dataset.
+We use the hourly Pageview Wikipedia dataset from \textbf{from 1 October 2025 at 00:00 UTC} as our base dataset.
 We augment the dataset in the following way:
 \begin{enumerate}
     \item We filter out all non-English articles, i.e., we only keep articles with the domain code \texttt{en}.
@@ -70,8 +70,8 @@ We augment the dataset in the following way:
     \item To create a smaller dataset, we take a random fraction of the articles as samples.
 \end{enumerate}
 
-To populate the database, we insert all articles from filtered dataset once.
-We then run the workload on the database or on the indices directly.
+To populate the database, we insert all articles from the filtered dataset once.
+We then run the workload on the indices.
 
 \subsubsection*{Workload Characteristics}
 \label{sec:workload-characteristics}
@@ -79,15 +79,15 @@ The resulting workload has the following characteristics:
 \begin{itemize}
     \item The dataset contains 59,240 distinct articles, translating to 59,240 distinct keys in the database.
     \item The workload contains 146,068 views in total.
-    \item The keys follow a Zipf-like distribution, i.e. a small number articles are very popular and receive a large number of operations, while the majority of articles receive only a few. 
+    \item The keys follow a Zipf-like distribution, i.e., a small number of articles are very popular and receive a large number of operations, while the majority of articles receive only a few.
     \item In fact, 40,670 articles (\textasciitilde69\%) are viewed only once in the dataset. 
     The most viewed article, \textit{Jon\_Stewart}, received 2,998 views (\textasciitilde10\% of all views).
     \item \textbf{Update workload}: We transform 7,303 lookups into updates (\textasciitilde5\%) by default. When mentioned, we vary the update ratio from 0\% to 100\%.
     \item With an update ratio of 5\%, we update 5,724 distinct articles (\textasciitilde10\% of all articles) in the generated workload, whereas the majority of articles (\textasciitilde86\%) are only updated once.
     The most frequently updated article, \textit{Jon\_Stewart}, is updated 132 times (\textasciitilde10\% of all updates).
     \item \textbf{Insert workload}: To evaluate the performance of our approach on insert-heavy workloads, we create a workload with 100\% inserts as well.
-    In this workload we insert all articles of the sample into an empty database or index.
-    \item The keys are variable-sized strings with an average length of 20.5 characters, a maximum length of 236 characters and a minimum length of 1 character.
+    In this workload, we insert all articles of the sample into an empty database or index.
+    \item The keys are variable-sized strings with an average length of 20.5 characters, a maximum length of 236 characters, and a minimum length of 1 character.
 \end{itemize}
 
 
@@ -103,15 +103,15 @@ The goal of this evaluation is to determine whether the 3B-tree can reduce \ac{I
 \label{sec:write-amplification}
 For a first analysis, we consider the write amplification of the B-tree and 3B-tree indices when running the mixed Wikipedia Pageviews workload with 5\% updates on the sample dataset.
 We run the indices in isolation to focus on the performance of the indices themselves without the overhead of maintaining the table data.
-We benchmarked with 4 KB pages, a buffer pool of 400 pages (\textasciitilde80\% of the B-Tree pages), and a write threshold of 5\% (i.e. we only write pages to disk if >5\% of the page has been modified in the case of a 3B-tree index).
-The base B-tree in both indices produce a tree with 502 nodes in total.
+We benchmarked with 4 KB pages, a buffer pool of 400 pages (\textasciitilde80\% of the B-Tree pages), and a write threshold of 5\% (i.e., we only write pages to disk if >5\% of the page has been modified in the case of a 3B-tree index).
+The base B-tree in both indices produces a tree with 502 nodes in total.
 Both inner and leaf nodes fit 170 entries each, while the average node is filled to \textasciitilde70\%.
 There is no difference in fanout between the two indices (see Space Overhead \ref{sec:space_overhead}).
 We compare the number of page writes to disk for both indices.
 
 The results are shown in \autoref{fig:page-writes-mixed}.
 We observe a reduction of \textasciitilde69\% in total page writes when using the 3B-tree compared to the B-tree.
-We can see, that in the 3B-tree index, the majority of page writes occur in the Delta Tree than its base B-Tree.
+We can see that in the 3B-tree index, the majority of page writes occur in the Delta Tree rather than its base B-Tree.
 This shows that we successfully defer small writes across the B-tree and batch them more efficiently in fewer pages in the Delta Tree.
 
 \begin{figure}[htbp]
@@ -156,7 +156,7 @@ In contrast, the 3B-tree experiences a steady increase in page writes as the buf
 In the following, we analyze the performance of the 3B-tree under different memory constraints in more detail.
 We differentiate between low (5\%-10\%), restricted (20\%-80\%) and high (>99\%) memory capacities.
 Percentages are given with respect to the total number of B-tree pages.
-Both indices produce the same amount of B-tree pages in all settings.
+Both indices produce the same number of B-tree pages in all settings.
 
 \begin{figure}[htbp]
   \centering
@@ -176,23 +176,23 @@ Two questions arise:
   When we do not have enough memory to cache pages, we cannot accumulate changes in the Delta Tree effectively.
   The Delta Tree improves page writes only when at least two changes can be accumulated on a Delta Tree page before writing it to disk again.
   The inserted deltas between page writes of the Delta Tree page must be $>1$ on average to see an improvement.
-  When constantly swapping pages in and out of memory, we simply move the page write from one tree to another.
+  When constantly swapping pages in and out of memory, we move the page write from one tree to another.
   Since the 3B-tree shares the buffer pool between two trees, memory is more constrained for each tree.
   This leads to more page traffic overall, further reducing the probability of accumulating changes in a Delta Tree leaf.
   \item \textit{Why do we have even more page writes?}
-  When moving page writes from one tree to another, we would expect to see the same amount of page writes overall.
-  The average amount of deltas inserted (i.e. B-tree page writes deferred) in between Delta Tree page writes should be equal to $1$.
+  When moving page writes from one tree to another, we expect to see the same amount of page writes overall.
+  The average amount of deltas inserted (i.e., B-tree page writes deferred) in between Delta Tree page writes should be equal to $1$.
   However, we see more page writes with the 3B-tree than with the standalone B-tree.
   The average amount of deltas inserted in between Delta Tree page writes is actually smaller than $1$ ($4,993 / 6,506 \approx 0.77$) with a buffer pool of 25 pages.
-  This means we can dirty more Delta Tree pages than we inserted deltas. 
-  Firstly, when inserting a delta we can trigger a split in the Delta Tree, causing a new inner node to be created or updated in the B-tree. 
+  This means we can dirty more Delta Tree pages than we inserted deltas.
+  Firstly, when inserting a delta, we can trigger a split in the Delta Tree, causing a new inner node to be created or updated in the B-tree.
   Secondly, we must delete entries from the Delta Tree when B-tree pages have accumulated enough changes to actually write them to disk.
 \end{enumerate}
 
 The 3B-tree cannot utilize its batching capabilities without caching.
 In such a setting, we merely introduce further write amplification in the system since we have more pages to maintain.
 The 3B-tree requires enough memory to accumulate changes over time.
-Only with effective page caching, we can reduce the page writes in total.
+Only with effective page caching can we reduce total number of page writes.
 
 \inlinesection{Restricted Memory Capacity.}
 With limited memory capacities of 100-500 pages, we see a significant reduction in page writes with the 3B-tree compared to the B-tree.
@@ -203,12 +203,12 @@ We achieve the batching effect that we are aiming for, leading to fewer total pa
 This shows that our method can effectively utilize the available memory to reduce write amplification in memory-constrained settings.
 
 \inlinesection{High Memory Capacity.}
-With a buffer pool of 500 pages, almost all pages can be kept in memory, therefore the effect is less pronounced.
+With a buffer pool of 500 pages, almost all pages can be kept in memory; therefore, the effect is less pronounced.
 With a buffer pool of 502 pages (100\% of the B-tree), we could hold the entire B-tree in memory.
 The Delta Tree is obsolete in this setting, as we can keep all changes in memory without writing them to disk.
 Since the Delta Tree is empty, and no B-tree pages are loaded from disk once they are in memory, we do not have to perform any lookups into the Delta Tree.
-Therefore, the 3B-tree does not incur any overhead compared to the B-tree except from tracking changes in the B-tree nodes.
-However, this overhead is negligible as shown in \autoref{sec:in-memory-overhead}.
+Therefore, the 3B-tree does not incur any overhead compared to the B-tree except for tracking changes in the B-tree nodes.
+However, this overhead is negligible, as shown in \autoref{sec:in-memory-overhead}.
 
 \inlinesection{Summary.}
 To summarize, the 3B-tree can reduce write amplification in memory-constrained settings where the entire dataset does not fit in memory.
@@ -249,12 +249,13 @@ We expected to see smaller improvements with larger write thresholds for three r
 We achieve our goal of reducing page writes when we can accumulate changes on $y$ pages into a single page of the Delta Tree, where $y > 1$.
 We can then save up to $y - 1$ page writes.
 However, with larger write thresholds, fewer pages' changes fit into a single page.
-For example, with a 1\% threshold, we can fit 100 pages' changes into a single 4 KB page, while with a 25\% threshold, we can only fit 4 pages' changes in the worst case.
+For example, with a 1\% threshold, we can fit 100 pages' changes into a single 4 KB page.
+At a 25\% threshold, we can only fit 4 pages worth of changes in the worst case.
 The maximum accumulation factor $y$ decreases with larger write thresholds, leading to fewer potential savings in page writes.
-\item \textbf{Less Likelihood to Batch Changes:}
+\item \textbf{Less Likelihood of Batching Changes:}
 With fewer changes fitting into a single page, the likelihood of batching changes in between Delta Tree page writes decreases.
 For example, assume a Delta Tree node $d$ that holds $x$ delta arrays for $x$ B-tree nodes.
-This means, at some point $x$ B-tree nodes have been modified. 
+This means that, at some point, $x$ B-tree nodes have been modified. 
 However, this does not directly translate to $x$ saved page writes, because $d$ itself might have been written to disk before all $x$ B-tree nodes were modified.
 Therefore, we only batch changes that happen between two writes of $d$.
 When $d$ holds the changes of 100 B-tree nodes, the likelihood of batching changes is much higher than when $d$ only holds the changes of 4 B-tree nodes.
@@ -263,7 +264,7 @@ On average, we can save $\frac{y - 1}{s}$ page writes per Delta Node $d$, where 
 Additionally, with larger deltas, we require more leaf nodes in the Delta Tree to address all changes.
 This introduces more page overhead in the system, leading to more page traffic.
 This increases $s$, the number of times a Delta Tree node is written to disk.
-(The fanout itself is not affected, since inner nodes only hold fixed size \ac{PID}s as keys. The variable-sized deltas are only stored in the leaf nodes, so more pages need to be addressed by the Delta Tree.)
+(The fanout itself is not affected, since inner nodes only hold fixed-size \ac{PID}s as keys. The variable-sized deltas are only stored in the leaf nodes, so more pages need to be addressed by the Delta Tree.)
 \end{enumerate}
 
 \inlinesection{Stagnating Improvements.}
@@ -282,9 +283,9 @@ Therefore, we run the same experiment with a workload of 100\% insert to see if 
 The results are shown in \autoref{fig:write_thresholds_insert}.
 The insertion workload distributes inserts more evenly across the index, as every article is inserted once.
 The order of articles is shuffled, so we do not have any locality in the inserts.
-Indeed we can observe the diminishing returns more clearly in this workload.
+Indeed, we can observe the diminishing returns more clearly in this workload.
 However, the improvements still stagnate after a write threshold of 20\%.
-This workload introduces a lot of modification activity per page, therefore we would expect to see a more drastic reduction.
+This workload introduces a lot of modification activity per page; therefore, we expect to see a more drastic reduction.
 The reason is explained in the next point.
 \item \textbf{Pages are Written Before They Reach High Degrees of Change:}
 While investigating, we found that pages are often written to disk before they can accumulate many changes.
@@ -292,7 +293,7 @@ In \autoref{tab:modification-degree}, we can see the distribution of the modific
 We chose a write threshold of 100\% for this experiment to see the full distribution of modification degrees.
 It only shows the pages that are inserted into the Delta Tree, not the pages that bypass the Delta Tree and are directly written to disk.
 We can see that the Delta Tree only receives small deltas from the B-tree for the vast majority of nodes across workloads.
-Even in a workload with 100\% inserts, where some nodes experience a lot of changes such as node splits, we see that they do not end up in the Delta Tree.
+Even in a workload with 100\% inserts, where some nodes experience a lot of changes, such as node splits, we see that they do not end up in the Delta Tree.
 One reason is that \textbf{we write new pages to disk immediately} at eviction.
 Another reason is that node splits combined with many inserts introduce \textbf{change degrees over 100\%} for a page, which is higher than the write threshold of 100\% and therefore is written to disk.
 Lastly, we sometimes have to write B-tree nodes to disk even though their degree of change is below the write threshold.
@@ -340,7 +341,7 @@ Therefore, we never see high degrees of change for any page, as we write them to
   \label{tab:modification-degree}
 \end{table}
 
-A more sequential workload could help to increase the degree of change for pages that end up in the Delta Tree.
+A more sequential workload would increase the degree of change for pages that end up in the Delta Tree.
 However, in such a scenario, traditional B-trees already perform very well.
 Therefore, we cannot expect to see significant improvements with very high write thresholds in such a workload.
 
@@ -354,14 +355,14 @@ Therefore, we continue to use this setting in the following experiments.
 \subsubsection*{Different Read/Write Ratios}
 To understand the impact of different read/write ratios on the performance of the 3B-tree, we run the same workload with different update ratios.
 We fixate the buffer pool size at 500 pages, the page size at 4 KB, and the write threshold at 5\%.
-We vary the update ratio from 0\% to 100\%, i.e. we run workloads with only lookups, only updates, and mixed workloads in between.
+We vary the update ratio from 0\% to 100\%, i.e., we run workloads with only lookups, only updates, and mixed workloads in between.
 The results are shown in \autoref{fig:write-ratios}.
 We measure write amplification as the ratio of total bytes written to disk over the total bytes of the entries we modify in the index.
 
-In a read-only workload we perform no page writes at all, as expected.
+In a read-only workload, we perform no page writes at all, as expected.
 With writes present in the workload, we see a significant reduction in page writes with the 3B-tree compared to the B-tree.
 The write amplification itself is higher for fewer updates, as we scatter small writes across the index, leading to more pages written for a small set of updates.
-Here the 3B-tree can reduce write amplification by up to \textasciitilde70\% by batching them to fewer pages in the Delta Tree.
+Here, the 3B-tree can reduce write amplification by up to \textasciitilde70\% by batching them to fewer pages in the Delta Tree.
 With more updates, more entries are modified in the same pages, leading to lower write amplification.
 The 3B-tree can still reduce write amplification by \textasciitilde50\% in a workload with 100\% updates.
 Even though we update every entry in the index with this workload, the 3B-tree can defer the page writes until more changes have accumulated, while the B-tree writes its pages to disk immediately upon eviction.
@@ -381,7 +382,7 @@ Even though we update every entry in the index with this workload, the 3B-tree c
     \caption{Write Amplification per workload.}
     \label{fig:write-ratios-wa}
   \end{subfigure}
-  \caption{Page Writes and Write Amplification of the B-tree and 3B-tree with different write/read ratios in the workload. Without updates we have no page writes and therefore no write amplification. While page writes increase with more updates, write amplification decreases, as more changes happen in the same pages. The 3B-tree can reduce write amplification significantly across all workloads.}  
+  \caption{Page Writes and Write Amplification of the B-tree and 3B-tree with different write/read ratios in the workload. Without updates, we have no page writes and therefore no write amplification. While page writes increase with more updates, write amplification decreases, as more changes happen in the same pages. The 3B-tree can reduce write amplification significantly across all workloads.}  
   \label{fig:write-ratios}
 \end{figure}
 
@@ -390,7 +391,7 @@ Even though we update every entry in the index with this workload, the 3B-tree c
 Looking at page writes only does not give the full picture of the performance of the 3B-tree.
 We need to consider the page reads as well to understand the overall \ac{IO} performance.
 Therefore, we investigate the read amplification of the 3B-tree compared to a traditional B-tree.
-To repeat, read amplification describes the amount of \ac{IO} operations we need to perform to answer a query (see \autoref{sec:read-amplification-background}).
+To repeat, read amplification describes the number of \ac{IO} operations we need to perform to answer a query (see \autoref{sec:read-amplification-background}).
 However, for the purpose of this analysis, we specifically refer to \textbf{the ratio of page reads we add compared to the traditional B-tree}.
 In addition to the page writes we save, we analyze the total amount of \ac{IO} operations, i.e., the read amplification.
 
@@ -400,7 +401,7 @@ We introduce additional page reads in the following way:
   \item Every time we load a B-tree page from disk, we have to look up the \ac{PID} in the Delta Tree for any changes that need to be applied.
   \item Every time we unload a B-tree's dirty page, we either delete its deltas from the Delta Tree (if the page is written to disk) or insert/update its deltas in the Delta Tree (if the page is not written to disk).
 \end{enumerate}
-All these operations require a traversal through the Delta Tree, loading nodes from disk, if they are not in memory.
+All these operations require a traversal through the Delta Tree, loading nodes from disk if they are not in memory.
 Additionally, sharing the buffer pool between two trees leads to more page traffic in both trees.
 We show the sources of additional page reads in the following.
 
@@ -454,20 +455,20 @@ Every node in the B-tree can produce deltas of the maximum size of $write\_thres
 Therefore, the maximum size of all deltas is $write\_threshold \cdot page\_size \cdot num\_btree\_nodes$, which the Delta Tree has to store.
 Since the Delta Tree has the same page size as the B-tree, we can calculate the maximum number of leaf nodes in the Delta Tree (we neglect the space overhead of storing deltas in nodes for simplicity here):
 $$num\_delta\_leaf\_nodes =  write\_threshold \cdot num\_btree\_nodes$$
-With a write threshold of 5\% for example, the number of leaf nodes in the Delta Tree are around 5\% of the total nodes of the B-tree.
-If 1\% of the B-tree nodes are inner nodes, we can assume that that inner nodes are always cached in memory and therefore never need to store deltas in the Delta Tree.
+With a write threshold of 5\% for example, the number of leaf nodes in the Delta Tree is around 5\% of the total nodes of the B-tree.
+If 1\% of the B-tree nodes are inner nodes, we can assume that inner nodes are always cached in memory and therefore never need to store deltas in the Delta Tree.
 We can reduce the number of Delta Tree nodes to store deltas from B-tree leaf nodes only:
 $$num\_delta\_leaf\_nodes =  write\_threshold \cdot num\_btree\_leaf\_nodes$$
 
 We have argued in \autoref{sec:different-write-thresholds} that the write threshold should be kept small to maximize write amplification reduction.
 Also, we have seen that the amount of change per page usually remains small between page writes, leading to small deltas even with higher write thresholds.
-Therefore, we can keep the Delta Tree small compared to the B-tree, allowing us to cache it effectively in memory and keep Delta Tree page reads low.
+Therefore, we can keep the Delta Tree small compared to the B-tree, allowing us to cache it effectively in memory and keep the Delta Tree page reads low.
 
 \inlinesection{Total \ac{IO} Operations.}
-Even when we can cache most of the Delta Tree in memory under reasonable memory constraints, we still introduce some additional page reads as shown in \autoref{fig:buffer-traffic}.
-To analyze the overall \ac{IO} performance, we have illustrated the total \ac{IO} operations, separated in page reads and writes, in \autoref{fig:total-io} for different update ratios in the workload.
-We can see that the baseline B-tree performs the same amount of reads across all workloads, since the workload size and the index size remain the same.
-We only change the amount of updates in the workload, which affects the amount of writes.
+Even when we can cache most of the Delta Tree in memory under reasonable memory constraints, we still introduce some additional page reads, as shown in \autoref{fig:buffer-traffic}.
+To analyze the overall \ac{IO} performance, we have illustrated the total \ac{IO} operations, separated into page reads and writes, in \autoref{fig:total-io} for different update ratios in the workload.
+We can see that the baseline B-tree performs the same number of reads across all workloads, since the workload size and the index size remain the same.
+We only change the number of updates in the workload, which affects the number of writes.
 In contrast, the 3B-tree performs more reads the higher the update threshold is, since we introduce more page reads with the Delta Tree as argued before.
 However, the more writes we have in the workload, the more writes we can save with the 3B-tree.
 The read amplification is up to \textasciitilde33\%, while the write reduction is up to \textasciitilde62\%.
@@ -481,7 +482,7 @@ The read amplification is up to \textasciitilde33\%, while the write reduction i
 
 These findings show that the 3B-tree is not always beneficial in every scenario.
 While we can reduce write amplification significantly, we introduce read amplification in the process.
-Only in workloads where we have enough writes to compensate for the additional reads, we can achieve a net reduction in \ac{IO} operations.
+Only in workloads where we have enough writes to compensate for the additional reads can we achieve a net reduction in \ac{IO} operations.
 
 We can express this trade-off in a payoff condition for our method.
 Consider a workload consisting of read operations and write operations.
@@ -501,15 +502,15 @@ Equation~\ref{eq:ratio_condition_costs} simplifies to:
 
 Hence, the method pays off when the workload exhibits fewer than approximately $1.88$ read operations per write.
 For example, in a workload where most pages are written to after being read from disk, we have one read per write most of the time $< 1.88$.
-This is the pattern we see in the insert workload for example, building the index from scratch.
-Also in update-heavy workloads, we can see such patterns.
-For example in the 50\% update workload shown in \autoref{fig:total-io}, we have about 1.6 reads per write, so about 60\% of all read pages are written to before being evicted.
+This is the pattern we see in the insert workload, for example, building the index from scratch.
+Also, in update-heavy workloads, we can see such patterns.
+For example, in the 50\% update workload shown in \autoref{fig:total-io}, we have about 1.6 reads per write, so about 60\% of all read pages are written to before being evicted.
 Since $1.6 < 1.88$, we reach a net reduction in \ac{IO} operations.
 A scenario where our method performs well. 
 
 Depending on the underlying hardware, read and write operations can have different costs.
-In a setting where random writes are significantly more expensive than random reads, as on the M1 Pro's SSD with 512 GB, we could see faster runs in the 3B-tree even in scenarios where we have more total \ac{IO} operations due to a high fraction of read operations but less write operations.
-However, some SSDs can be faster in writing than reading.
+In a setting where random writes are significantly more expensive than random reads, as on the M1 Pro's SSD with 512 GB, we could see faster runs in the 3B-tree even in scenarios where we have more total \ac{IO} operations due to a high fraction of read operations but fewer write operations.
+However, some SSDs can be faster in writing than in reading.
 We can extend this condition to account for different costs of read and write operations.
 Let $c_r$ and $c_w$ denote the cost per read and per write, respectively.  
 
@@ -519,7 +520,7 @@ Let $c_r$ and $c_w$ denote the cost per read and per write, respectively.
 \label{eq:ratio_condition_costs}
 \end{equation}
 
-To summarize, the 3B-tree is beneficial in workloads where the majority of pages are written to after being read from disk, i.e. workloads with a low read-to-write ratio.
+To summarize, the 3B-tree is beneficial in workloads where the majority of pages are written to after being read from disk, i.e., workloads with a low read-to-write ratio.
 To keep read amplification low, we need to be able to cache the Delta Tree effectively in memory.
 
 % Mixed workload, 400 pages in buffer, varying Update Ratio:
@@ -561,11 +562,11 @@ To keep read amplification low, we need to be able to cache the Delta Tree effec
 
 \subsection{Space Utilization}
 \label{sec:space_overhead}
-To track changes we need to store additional metadata in the B-tree nodes.
+To track changes, we need to store additional metadata in the B-tree nodes.
 This introduces a fixed overhead per B-tree node.
 
 \inlinesection{Tracking Modified Entries.}
-Firstly, we store the state of each entry in the B-tree node to track whether it has been modified or not.
+Firstly, we store the state of each entry in the B-tree node to track whether it has been modified.
 We inject this information into the slot of each entry.
 As mentioned in \autoref{chap:implementation}, we can use 2 bits to encode each state (Unchanged, Inserted, Updated, Deleted).
 Since the slot data layout is critical to maximize fanout, we hide this information in the existing slot structure.
@@ -573,31 +574,31 @@ We use the two most significant bits of the offset to store the state.
 
 \inlinesection{Tracking Degree of Change of Nodes.}
 Secondly, we track the degree of change for each node.
-To that end we store a counter in each B-tree node that tracks the approximate number of bytes that have been modified since the last write to disk.
+To that end, we store a counter in each B-tree node that tracks the approximate number of bytes that have been modified since the last write to disk.
 This counter is used to determine whether the write threshold has been reached and the node needs to be written to disk.
 We use a 16-bit unsigned integer for this counter, which allows us to track changes up to 65535 bytes.
 This is sufficient for our use case, as we can track changes up to 100\% of a 64 KB page.
-More realistically though, we do not want to track changes beyond 50\% of a page, therefore we could even track larger page sizes with this counter.
+More realistically, though, we do not want to track changes beyond 50\% of a page; therefore, we could even track larger page sizes with this counter.
 
 This means that our implementation introduces a fixed overhead of 2 B per node.
 However, this does not affect the fanout of the index significantly.
 In some scenarios, it does not affect the fanout at all.
 For example, assume we store entries of 16 B each (8 B key, 8 B value) on 4 KB pages as we do in our previous benchmarks.
-On a leaf node, each entry requires 24 B, a slot of 8 B (4 B offset, 2 B key size, 2 B value size) and the data of 16 B (8 B key, 8 B value).
+On a leaf node, each entry requires 24 B, a slot of 8 B (4 B offset, 2 B key size, 2 B value size), and the data of 16 B (8 B key, 8 B value).
 Therefore, our B-tree leaf nodes can hold 170 entries on a 4 KB page.
 With a header of 12 B, a full leaf node occupies $12 B + 170 \cdot 24 B = 4092 B$.
 With the additional overhead of 2 B per node, $ 4092 B + 2 B = 4094 B < 4096 B$, we can still fit the same amount of entries on a page.
 The same applies to inner nodes.
 In this scenario, we do not lose any fanout due to the additional overhead.
-However, in other scenarios we might lose one entry per node due to the additional overhead.
-With a 4 KB page and 170 entries per node, loosing one entry means a loss of \textasciitilde0.6\% in fanout.
+However, in other scenarios, we might lose one entry per node due to the additional overhead.
+With a 4 KB page and 170 entries per node, losing one entry means a loss of \textasciitilde0.6\% in fanout.
 
 \subsection{In-Memory Overhead}
 \label{sec:in-memory-overhead}
 To analyze the memory overhead of tracking changes on the pages in memory, we run the mixed Wikipedia Pageviews workload purely in memory, once on a B-tree with tracking enabled and once on a B-tree without tracking.
 The B-tree without tracking does not have a Delta Tree attached, so we can see the pure overhead of tracking changes in the B-tree nodes.
 We fixate the buffer pool size to 600 pages to ensure that the whole index fits in memory.
-This way we can look at the pure memory overhead without the influence of page swaps.
+This way, we can look at the pure memory overhead without the influence of page swaps.
 The results are shown in \autoref{tab:tracking-overhead}.
 We see that the overhead of tracking changes in memory is negligible.
 
@@ -620,7 +621,7 @@ We see that the overhead of tracking changes in memory is negligible.
 To analyze the effect of variable-sized entries, we run the same Wikipedia Pageviews workload, but this time with the variable-sized \texttt{page\_title} as key.
 As expected, the index size increases due to the larger average key size of \textasciitilde 20.5 B compared to the fixed size keys of 8 B.
 We observed that the B-tree has 757 nodes with variable-sized keys compared to 502 nodes with integer keys.
-To remove the influence of different index sizes, and therefore more pages, we run the benchmarks with a buffer pool that fits \textasciitilde40\% of the B-tree in memory respectively (300 pages for fixed-sized keys, 200 pages for variable-sized keys).
+To remove the influence of different index sizes, and therefore more pages, we run the benchmarks with a buffer pool that fits \textasciitilde40\% of the B-tree in memory, respectively (300 pages for fixed-sized keys, 200 pages for variable-sized keys).
 We run the same workload with 100\% insertions.
 The results are shown in \autoref{fig:total-io-variable-size}.
 
@@ -631,26 +632,26 @@ The results are shown in \autoref{fig:total-io-variable-size}.
   \label{fig:total-io-variable-size}
 \end{figure}
 
-With the different buffer sizes we achieve similar page reads and writes for the baseline B-trees.
+With the different buffer sizes, we achieve similar page reads and writes for the baseline B-trees.
 However, with variable-sized keys, the 3B-tree achieves a smaller reduction in page writes compared to fixed-sized keys.
 With variable-sized keys, we can reduce page writes by \textasciitilde56\% compared to \textasciitilde64\% with fixed-sized keys.
 This has two reasons:
 \begin{enumerate}
   \item \textbf{Larger Delta Tree:} 
-  With variable-sized keys we generate more B-tree nodes (757 vs 502).
+  With variable-sized keys, we generate more B-tree nodes (757 vs 502).
   Therefore, we have more pages that can produce deltas, leading to a larger Delta Tree.
-  Our Delta Tree implementation stores the updated entries, therefore variable-sized entries lead to larger deltas as well, increasing the size of the Delta Tree further.
+  Our Delta Tree implementation stores the updated entries; therefore, variable-sized entries lead to larger deltas, increasing the size of the Delta Tree further.
   While both Delta Trees are \textasciitilde3.8\% of the size of their respective B-trees, the Delta Tree is larger in absolute terms.
-  A larger Delta Tree leads to more page traffic and therefore more page writes.
+  A larger Delta Tree leads to more page traffic, and therefore, more page writes.
   \item \textbf{Larger Modification Degrees:}
-  With variable-sized keys, we have more variance in the modification degree of pages as shown in \autoref{tab:modification-degree-variable-size}.
-  Therefore, we have less pages with a modification degree below the write threshold of 5\%.
-  This leads to less pages being buffered in the Delta Tree and therefore, a smaller overall write reduction.
+  With variable-sized keys, we have more variance in the modification degree of pages, as shown in \autoref{tab:modification-degree-variable-size}.
+  Therefore, we have fewer pages with a modification degree below the write threshold of 5\%.
+  This leads to fewer pages being buffered in the Delta Tree, and therefore, a smaller overall write reduction.
 \end{enumerate}
 
-While a conclusion could be that variable sized keys require a larger write threshold to achieve similar write reductions, we could not confirm this hypothesis with our experiments.
+While a conclusion could be that variable-sized keys require a larger write threshold to achieve similar write reductions, we could not confirm this hypothesis with our experiments.
 Larger write thresholds lead to larger Delta Trees and no further reduction in write amplification.
-To summarize, our method works with variable-sized keys as well, but the write reduction is smaller, mainly due to larger modification degrees of pages.
+To summarize, our method works with variable-sized keys as well, but the write reduction is smaller, mainly due to the larger modification degrees of pages.
 
 \begin{table}[ht]
 \centering
@@ -685,7 +686,7 @@ To summarize, our method works with variable-sized keys as well, but the write r
     Total Evictions & 15813 & 15705 \\
 \bottomrule
 \end{tabular}
-\caption{Distribution of B-tree pages by their modification degree (percentage intervals) when being evicted with a write threshold of 5\% for fixed-sized keys and variable-sized keys in a workload with 100\% insertions. While both have similar number of page evictions, the variable-sized keys have more variance in the modification degree and less pages with a degree of change below the write threshold of 5\%.}
+\caption{Distribution of B-tree pages by their modification degree (percentage intervals) when being evicted with a write threshold of 5\% for fixed-sized keys and variable-sized keys in a workload with 100\% insertions. While both have similar number of page evictions, the variable-sized keys have more variance in the modification degree and fewer pages with a degree of change below the write threshold of 5\%.}
 \label{tab:modification-degree-variable-size}
 \end{table}
 

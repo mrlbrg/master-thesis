@@ -1,25 +1,25 @@
 \chapter{\abstractname}
 
 % Why should you read this thesis? Why do we choose B-trees?
-B-trees are the most used data structure in modern database systems, due to their efficient access patterns and excellent lookup performance on large volumes of data.
+B-trees are one of the most widely used data structures in modern database systems because of their efficient access patterns and excellent lookup performance on large volumes of data.
 % What is the problem in B-trees? Why are random writes important?
-However, B-trees perform suboptimally under random writes, a pervasive pattern for secondary indexes.
-Such workloads introduce write amplification in B-trees, a phenomenon where the amount of data written to storage is significantly larger than that of logically changed data.
+However, B-trees perform suboptimally under random writes, a pervasive pattern for secondary indices.
+Such workloads introduce write amplification in B-trees, a condition in which the amount of data written to storage is significantly larger than that of logically changed data.
 % Why is solving write amplification important?
 As a result, B-trees suffer increased latency, reduced throughput, and premature device wear with write-intensive workloads.
 
 % Why did previous attempts to solve the problem fail?
-An alternative is \ac{LSMT}, which trade off low read performance for high write performance.
-However, this trade makes \ac{LSMT} unsuitable for generic database systems that require more balanced performance characteristics.
-Other attempts to reduce write amplification in B-trees either reduce concurrency, impact read performance, or rely on hardware-specific features, limiting their effectiveness and applicability.
+An alternative is \ac{LSMT}, which trade lower read performance for higher write performance.
+However, this trade-off makes \ac{LSMT} unsuitable for general-purpose database systems that require more balanced performance characteristics.
+Other attempts to reduce write amplification in B-trees either reduce concurrency, degrade read performance, or rely on hardware-specific features, thereby limiting their effectiveness and applicability.
 
 % What is the proposed approach?
-This thesis introduces a lightweight buffering layer that minimizes the frequency and volume of write operations to external storage by reducing write amplification.
-We hereby enable high performance under random writes, while sustaining all the benefits of traditional B-trees.
+This thesis introduces a lightweight buffering layer that minimizes the frequency and volume of write operations to external storage.
+By doing so, we reduce write amplification and enable high performance under random writes, while preserving the benefits of traditional B-trees.
 
 % What are the results?
-We implement the proposed structure, evaluate its performance under different workloads, and compare it against state-of-the-art methods.
+We implement the proposed structure, evaluate its performance, and analyze its trade-offs.
 Compared to traditional B-trees, our method achieves up to 70\% fewer page writes while maintaining comparable read performance.
 
 % What are the implications?
-These results suggest that write-aware B-tree optimizations can extend the lifespan of storage devices and significantly improve the efficiency of write-intensive applications; contributing to the broader effort of designing storage-efficient data structures suited for modern hardware.
+These results suggest that write-aware optimizations for B-trees can significantly improve the efficiency of write-intensive applications, contributing to the broader effort to design storage-efficient data structures suited for modern hardware.

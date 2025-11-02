@@ -6,25 +6,25 @@
 We disclose the gaps in existing work that we aim to address in this thesis and identify the following design goals for our approach to reduce write amplification in B-trees.
 
 \subsection*{Reducing Write Amplification}
-Write Amplification in B-trees is primarily caused by the page-oriented design that requires rewriting entire pages to storage even if only a small portion changed.
-This page-oriented design is crucial to utilize bandwidth of modern storage devices and to minimize buffer management overhead.
+Write amplification in B-trees is primarily caused by the page-oriented design that requires rewriting entire pages to storage even if only a small portion has changed.
+This page-oriented design is crucial to utilize the bandwidth of modern storage devices and to minimize buffer management overhead.
 Merely reducing write amplification by reducing the amount of data written to storage is not the goal.
 Instead, high write amplification suggests that we perform unnecessary writes to storage, which we would like to avoid.
-We aim to mimimize the number of \ac{IO} operations induced by the B-tree to perform a set of updates.
+We aim to minimize the number of \ac{IO} operations induced by the B-tree to perform a set of updates.
 The overall goal is to create a B-tree variant that is more write-efficient regardless of the access pattern.
 
 \subsection*{Comparable Read Performance}
 B-trees are widely used in general-purpose database systems due to their excellent read performance for point lookups and range scans.
 As we showed in \autoref{chap:related-work}, many write-optimized data structures sacrifice read performance.
-For example, \ac{LSMT} incur high read amplification to achieve high write-efficiency. 
-Bw-trees introduces a delta chain to each node that needs to be traversed on every node read.
+For example, \ac{LSMT} incur high read amplification to achieve high write efficiency. 
+Bw-trees introduce a delta chain to each node that needs to be traversed on every node read.
 B$\epsilon$-trees introduce an extra binary search for every node on the search path.
-While every write-optimized data structure has to trade-off read performance for write-efficiency to some degree, we aim to keep the read performance of B-trees as close as possible to the original B-tree.
+While every write-optimized data structure has to trade off read performance for write efficiency to some degree, we aim to keep the read performance of B-trees as close as possible to the original B-tree.
 
 \subsection*{Preserving Concurrency}
 % Observation: The data structure itself should remain free of buffering logic to not compromise concurrency.
 B-trees are designed for high concurrency, allowing multiple threads to perform operations simultaneously.
-Many write-optimized data structures compromise concurrency to achieve high write-efficiency.
+Many write-optimized data structures compromise concurrency to achieve high write efficiency.
 For example, the B$\epsilon$-tree introduces longer locking periods of the most frequently accessed nodes, reducing throughput in the tree.
 In contrast, we aim to keep our optimizations outside of the data structure itself, without introducing further locking in the B-tree.
 Our method remains independent of the concurrency control mechanism used in the B-tree.
@@ -55,14 +55,14 @@ Neither do we require special hardware features, making our approach broadly app
 We avoid writing a page to storage if changes are small.
 To achieve this, we introduce a Delta Tree that acts as a hesitation layer, as illustrated in \autoref{fig:delta-tree}.
 When evicting a dirty page, we can buffer the changes of the B-tree pages instead of writing them to storage immediately.
-We can just discard the page, saving us the write to storage.
+We can discard the page, saving us the write to storage.
 When loading a page from storage, we apply all buffered changes to it before returning it to the B-tree.
-Only when enough changes accumulate, we write the full page to storage.
+Only when enough changes accumulate we write the full page to storage.
 
 \inlinesection{Reducing Write Amplification.}
 Write amplification in a B-tree happens at the point of eviction, when a page is written to storage.
 The buffer manager is only aware that a page is dirty.
-It does not know which parts of the page changed.
+It does not know which parts of the page have changed.
 Therefore, we keep track of the modifications made to each page in the B-tree.
 Our component interacts with the buffer manager to intercept the eviction of dirty pages.
 When evicting a dirty page, we can buffer the changes in the Delta Tree instead of writing them to storage immediately.
@@ -77,17 +77,17 @@ We aim for a batching effect in two ways:
   \textbf{Batching Changes Across Pages:}
   A single Delta Tree page can buffer changes for multiple B-tree pages.
   Therefore, we can batch changes across multiple pages into a single write operation.
-  This way, we can turn many small random writes into few large writes.
+  This way, we can turn many small random writes into fewwer large writes.
 \end{enumerate}
 Both effects help to reduce write amplification in the B-tree.
 
 We also perform writes to the Delta Tree itself.
-Firstly, when storing changes of B-tree pages.
+Firstly, when storing changes to B-tree pages.
 Secondly, when enough changes accumulate in the B-Tree pages, we write them back to storage.
 In that case, we need to remove the corresponding changes from the Delta Tree.
 At the point of applying changes from the Delta Tree to a B-tree page, we can keep the changes in the Delta Tree for future evictions.
-This way, we perform less updates to the Delta Tree and can keep the state of the B-tree page clean.
-Should there be no further changes to that page, the next eviction can simply discard the page without any writes.
+This way, we perform fewer updates to the Delta Tree and can keep the state of the B-tree page clean.
+Should there be no further changes to that page, the subsequent eviction can simply discard the page without any writes.
 These observations suggest that the Delta Tree should be small and fit into memory as much as possible (see \autoref{chap:evaluation}).
 As a result, we can expect fewer evictions of Delta Tree pages compared to B-tree pages.
 
@@ -96,16 +96,16 @@ To nodes in memory, this method is transparent.
 When searching pages in memory, we do not incur overhead.
 
 The only time we incur overhead is when loading a page from storage or unloading it to storage.
-We argue that this overhead is acceptable, as we are already loading a page from storage.
+This overhead is acceptable, as we are already loading a page from storage.
 The overhead of applying the buffered changes is small compared to the \ac{IO} operation.
 
 However, the buffering layer itself is a disk-based data structure, which might require \ac{IO} operations to look up buffered changes.
 We will be evaluating the read overhead in \autoref{chap:evaluation}.
-% i.e. there is an incentive to keep the delta tree small.
+% i.e., there is an incentive to keep the delta tree small.
 
 \inlinesection{Preserving Concurrency.}
 The Delta Tree is separate from the B-tree.
-Therefore, we do not compromise concurrency of the B-tree itself, since we do not introduce further locking in the B-tree itself.
+Therefore, we do not compromise the concurrency of the B-tree itself, since we do not introduce further locking in the B-tree itself.
 The Delta Tree can be implemented as a B-tree variant itself, allowing for high concurrency.
 
 \inlinesection{Maintaining Simplicity.}
@@ -124,7 +124,7 @@ Neither do we assume any special hardware features, making our approach broadly 
 
 % Learned from related work that we want to turn small writes into large sequential writes by batching them.
 % Obervation: Write amplification in B-trees is caused at the point of eviction. This is the point in time to buffer to defer a write.
-% Uptain the happy path. We don't want any overhead for reads like a delta chain. At least not everytime we read from memory.
+% Uptain the happy path. We don't want any overhead for reads like a delta chain. At least not every time we read from memory.
 
 % Write out record-level updates on the page to another tree.
 % A hesitation layer between B-tree and buffer manager.
@@ -145,7 +145,7 @@ The buffer manager is the component that decides when a page is evicted from mem
 At the same time, the buffer manager should not be aware of any semantics of its pages.
 More specifically, it does not know if it is evicting or loading pages of a B-tree or any other data structure.
 However, we require specific logic to be executed when evicting or loading pages of a B-tree.
-We need a way to inject this logic into the buffer manager without leaking B-tree specific logic into the buffer manager itself.
+We need a way to inject this logic into the buffer manager without leaking B-tree-specific logic into the buffer manager itself.
 Therefore, users can register function pointers that are invoked at eviction time and loading time.
 That way, the buffer manager remains agnostic of the semantics of its pages.
 
@@ -155,47 +155,47 @@ We modify the traditional B-tree in three ways to support our approach.
 \begin{enumerate}
   \item \textbf{Tracking Write Amplification:}
 We need to be aware of the degree of write amplification per node. 
-Whenever we modify a node, for example through an insertion or a node split, we keep track of the amount of bytes that were changed.
+Whenever we modify a node, for example, through an insertion or a node split, we keep track of the number of bytes that were changed.
 Then, in relation to the page size, we can determine the write amplification of the node.
 Based on that parameter, we can decide if a write operation to external storage is justified, or if we want to defer it.
   \item \textbf{Tracking Deltas:} 
-We need to determine the changes that occurred on a node since the last time it has been loaded from external storage.
+We need to determine the changes that occurred on a node since the last time it was loaded from external storage.
 To that end, each entry on a node has an additional "state" field that indicates if the entry was inserted, updated, or deleted since the last time the node was loaded from external storage.
-That way, we can buffer the "delta" image of a node at eviction-time and apply it again at loading time to ensure that we can reconstruct the logical state of a node when it is accessed again at a later point in time.
+That way, we can buffer the "delta" image of a node at eviction time and apply it again at loading time to ensure that we can reconstruct the logical state of a node when it is reaccessed at a later point in time.
 We do not incur any space overhead for the state field as elaborated in \autoref{sec:3b-tree-implementation}.
   \item \textbf{Injecting Callbacks:}
-As described above, we need to execute specific logic at eviction time and loading time of a B-tree page.
-However, the B-tree has no control over the point in time a page is evicted or loaded.
-Therefore, we inject callbacks into the buffer frames that are later invoked by the buffer manager.
+As described above, we need to execute specific logic at the eviction time and the loading time of a B-tree page.
+However, the B-tree has no control over the point in time at which a page is evicted or loaded.
+Therefore, we inject callbacks into the buffer frames that the buffer manager later invokes.
 Whenever we request a B-tree page from the buffer manager, we register function pointers for the Delta Tree.
 At eviction- and loading-time, these function pointers are called by the buffer manager to execute the necessary logic.
 \end{enumerate}
 
-Alternatively, we could have immediately inserted changes into the Delta Tree whenever a change occured on a B-tree node.
+Alternatively, we could immediately insert changes into the Delta Tree whenever a change occurred on a B-tree node.
 This way, we would not need to track changes on the B-tree nodes themselves.
 However, this would introduce significant overhead on every write operation to the B-tree.
 Imagine a sequential workload that updates the same B-tree node multiple times while it is in memory.
 Every write would require an update to the Delta Tree as well.
 However, when evicting the page, we would write the full page to storage anyway, as many changes occurred.
 We would degrade performance unnecessarily.
-Therefore, we only interact with the Delta Tree at eviction- and loading-time of a B-tree page instead.
-Only if we decide to buffer changes, we insert them into the Delta Tree.
-This way, we keep the performance impact for B-tree operations minimal.
+Therefore, we only interact with the Delta Tree at eviction and loading time of a B-tree page instead.
+Only if we decide to buffer changes do we insert them into the Delta Tree.
+This way, we keep the performance impact of B-tree operations minimal.
 We evaluate the tracking overhead of our approach in \autoref{chap:evaluation}.
 
 \subsection*{Delta Tree}
-The Delta Tree is the component that buffers changes of B-tree nodes.
+The Delta Tree is the component that buffers changes to B-tree nodes.
 The Delta Tree itself is a B-tree with \ac{PID}s as keys and lists of changes as values.
-The buffer manager calls back the Delta Tree everytime a dirty B-tree page is evicted from memory or loaded into memory.
+The buffer manager calls back the Delta Tree every time a dirty B-tree page is evicted from memory or loaded into memory.
 
 \begin{enumerate}
   \item \textbf{Eviction Time:}
 The Delta Tree can decide if a B-tree page should be written to storage or not based on the write amplification of the page.
-Should it decide to not write the page to storage, it buffers its changes.
-It does so, by scanning the node for entries that were marked as dirty and inserting them into its own B-tree.
-The buffer manager is informed that the page does not need to be written to storage anymore and can simply be discarded.
+Should it choose not to write the page to storage, it buffers its changes.
+It does so by scanning the node for entries that were marked as dirty and inserting them into its own B-tree.
+The buffer manager is informed that the page does not need to be written to storage anymore and can be discarded.
 
-Should it decide to continue writing the page to storage, it simply returns and the buffer manager writes the page to storage as usual.
+Should it choose to continue writing the page to storage, it simply returns, and the buffer manager writes the page to storage as usual.
 In this case, we clean the state of the B-tree page and remove any buffered changes from the Delta Tree, as it is now in sync with storage.
 
   \item \textbf{Loading Time:}
@@ -203,9 +203,9 @@ When loading a B-tree page from storage, the Delta Tree looks up if there are an
 If so, it applies the changes to the page before returning it to the B-tree.
 Together with the state of the page on storage, we can reconstruct the state of the page in memory.
 
-When changes were applied, we keep them in the Delta Tree, as they might be useful for future evictions.
-This way, we perform less updates to the Delta Tree and can keep the state of the B-tree page clean.
-Should there be no further changes to that page, the next eviction can simply discard the page without any writes.
+After changes were applied, we keep them in the Delta Tree, as they might be useful for future evictions.
+This way, we perform fewer updates to the Delta Tree and can keep the state of the B-tree page clean.
+Should there be no further changes to that page, the subsequent eviction can discard the page without any writes.
 \end{enumerate}
 
 The Delta Tree itself contains pages that are managed by the buffer manager.
@@ -214,7 +214,7 @@ Therefore, we want to keep the Delta Tree small to batch changes more effectivel
 
 \section{Implications on Write Amplification}
 We can illustrate the effect of our approach on write amplification with a simple example.
-\autoref{fig:delta-tree-example} shows a B-tree with updates across three nodes with \ac{PID}s {1, 2, 4}.
+\autoref{fig:delta-tree-example} shows a B-tree with updates across three nodes with \ac{PID}s {1, 2, and 4}.
 In a traditional B-tree, we would need to write all three pages to storage.
 Assuming a page size of 4 KB and each update being 64 B, the write amplification is $(4096 B / 64 B) * 3 = 192$.
 

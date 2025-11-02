@@ -7,14 +7,14 @@ Furthermore, it highlights the limitations of the current design and suggests ar
 
 \section{Summary of Findings}
 % “Our approach reduces write amplification by 40–60% while maintaining within 5% of baseline read latency.”11,848
-The proposed 3B-tree successfully reduces write amplification in traditional B-tree indices by buffering and batching updates in a secondary structure called the Delta Tree. 
+The proposed 3B-tree successfully reduces write amplification in B-trees by buffering and batching updates in a secondary structure called the Delta Tree. 
 The 3B-tree consistently demonstrates lower write amplification than the baseline B-tree while maintaining comparable space overhead and moderate read amplification.
 When evaluated on the mixed Wikipedia Pageviews workload, the 3B-tree achieved up to \textbf{70\% fewer page writes} compared to the baseline.
 
 An analysis of \textbf{read/write trade-offs} revealed that the 3B-tree introduces read amplification due to additional page reads for the Delta Tree whenever the B-tree reads or writes pages.
 This cost is offset when workloads exhibit enough page write savings, i.e., in insert-heavy or update-intensive workloads. 
 Under such conditions, total \ac{IO} operations are reduced, leading to net performance gains. 
-Conversely, read-dominant workloads experience regressions since the the small amount of page write savings cannot compensate for the introduced read overhead.
+Conversely, read-dominant workloads experience regressions since the small amount of page write savings cannot compensate for the introduced read overhead.
 
 Memory availability was found to be a decisive factor. 
 In low-memory capacities ($\leq$10\% of the index fits in memory), the 3B-tree can produce more page writes since we cannot batch changes when constantly swapping pages in and out of memory.
@@ -22,16 +22,16 @@ Batching is only possible when enough memory exists to cache the Delta Tree effe
 With \textbf{moderate memory capacities} (>10\% of the index fits in memory), the 3B-tree can achieve substantial write reductions of up to 70\%.
 With high memory capacities (>99\% of the index fits in memory), the use of a 3B-tree is not meaningful, as the B-tree rarely performs page writes.
 The introduced overhead of the Delta Tree lookups outweighs the small amount of write savings in this scenario.
-Overall, batching changes in memory is beneficial once memory is limited but sufficient space exists to cache updates.
+Overall, batching changes in memory is beneficial once memory is limited, but sufficient space exists to cache updates.
 Across all memory scenarios, the 3B-tree shows a clear advantage over the baseline B-tree: it degrades smoothly with decreasing memory, while the B-tree's write amplification increases sharply.
 
 The 3B-tree performed best with \textbf{small write thresholds} between 1\% and 10\%, balancing the number of buffered deltas per node and the size of the Delta Tree. 
-At these thresholds, the structure accumulates small, scattered changes efficiently, avoiding unnecessary full page writes. 
-Higher thresholds lead to larger Delta Trees, since each node fits less B-tree pages, diminishing the overall batching effect and introducing more page overhead.
+At these thresholds, the structure accumulates small, scattered changes efficiently, avoiding unnecessary full-page writes. 
+Higher thresholds lead to larger Delta Trees, since each node fits fewer B-tree pages, diminishing the overall batching effect and introducing more page overhead.
 
 The experiments with \textbf{variable-sized keys} confirmed that the 3B-tree remains effective, although the write reduction was smaller (approximately 8\% less compared to fixed-sized keys). 
 Variance in key length increased the number of nodes exceeding the write threshold, reducing opportunities for batching. 
-However, the Delta Tree size remained compact (same proportion to the respective B-tree) demonstrating that the overhead of managing variable-length entries is modest.
+However, the Delta Tree size remained compact (same proportion to the respective B-tree), demonstrating that the overhead of managing variable-length entries is modest.
 Larger write thresholds do not improve write reduction for the reasons discussed above.
 
 In summary, the 3B-tree reduces write amplification substantially across workloads.
@@ -50,13 +50,13 @@ While the 3B-tree demonstrates strong potential, some limitations constrain its 
   The method's effectiveness relies on the ability to cache portions of the Delta Tree in memory. 
   In extremely memory-limited environments, the additional lookups into the Delta Tree can increase total \ac{IO} activity and negate the intended benefits.
   \item \textbf{Read Amplification.}  
-  By introducing an additional layer for change buffering, each page load may triggers additional Delta Tree page loads. 
+  By introducing an additional layer for change buffering, each page load may trigger additional Delta Tree page loads. 
   Although the observed read amplification is moderate, it can increase total \ac{IO} in read-intensive workloads.
 %   \item \textbf{Concurrency.}  
 %   The current implementation operates in a single-threaded environment.
 %   Handling concurrent modifications, locking interactions between the B-tree and Delta Tree, and recovery integration with a \ac{WAL} were not part of the evaluation.
   \item \textbf{Workload Diversity.}  
-  The experiments were running on a single dataset (Wikipedia Pageviews) with Zipf-like key distribution.
+  The experiments were run on a single dataset (Wikipedia Pageviews) with Zipf-like key distribution.
   Additional datasets with different locality and access patterns (such as sequential or uniformly random) would be needed to generalize the results.
 %   \item \textbf{No Integration with Production DBMS.}  
 %   The evaluation was performed using a standalone research prototype. 
@@ -69,7 +69,7 @@ The findings open several directions for further research and system development
 \begin{enumerate}
     \item \textbf{Smart Eviction Policies.}
     Implementing  page eviction strategies that consider the access patterns and update frequencies could enhance the performance of the 3B-tree.
-    In our implementation, pages were evicted randomly, which do not reflect real-world buffer management strategies.
+    In our implementation, pages were evicted randomly, which does not reflect real-world buffer management strategies.
     More sophisticated policies, such as LFU or 2Q \cite{mdbs2024slides}, could be explored to improve cache hit rates.
     Prioritizing Delta Tree pages that contain frequently updated nodes could reduce read amplification significantly.
     \item \textbf{Alternative Buffering Data Structures.}
@@ -80,13 +80,13 @@ The findings open several directions for further research and system development
     In a B-tree structure, we risk scattering deltas across multiple pages.
     More ideally, if temporally close deltas are also spatially close, we could achieve better batching.
     In contrast to an \ac{LSMT}, where data is organized in levels, the 3B-tree only requires searching the Delta Tree during B-tree page reads and writes.
-    However, it could incur higher read amplification, so a careful design would be necessary.
+    However, it could incur higher read amplification, so that a careful design would be necessary.
     \item \textbf{Bloom Filters for Delta Tree Lookups.}
     Most read amplification arises from additional Delta Tree lookups during B-tree page reads.
     However, not all B-tree nodes have pending updates in the Delta Tree.
     In a read-dominant workload, many Delta Tree lookups may be unnecessary.
     A Bloom filter could be maintained in memory to quickly check whether a B-tree node has pending updates in the Delta Tree.
-    A technique often applied to skip unnecessary \ac{LSMT} level lookups.
+    A technique often applied to skip unnecessary level lookups in \ac{LSMT}.
     This would avoid unnecessary Delta Tree lookups when reading B-tree nodes that have no pending updates.
     This poses an opportunity to reduce read amplification significantly.
     \item \textbf{Tracking Updates in Table Data.}
@@ -102,6 +102,6 @@ The findings open several directions for further research and system development
 The primary objective of future work should be to refine the 3B-tree design to minimize read amplification, the primary source of overhead in read-heavy workloads.
 Reducing read overhead would maximize the overall \ac{IO} savings across a broader range of workloads, establishing the 3B-tree as a robust replacement for traditional B-trees.
 
-In conclusion, the 3B-tree demonstrates that \emph{write amplification in B-trees can be significantly reduced through buffered batching without major structural changes}. 
+In conclusion, the 3B-tree demonstrates that \emph{write amplification in B-trees can be significantly reduced through buffered batching without significant structural changes}. 
 Its design preserves the simplicity of B-trees while improving write efficiency, making it a practical foundation for future write-optimized indexing in modern storage environments.
 Keeping read costs low while minimizing write costs remains a key challenge.
